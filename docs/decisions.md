@@ -79,3 +79,13 @@
 - **背景**：设计文档要长期维护、随功能扩展；配置文件格式要统一。
 - **决策**：设计文档全部放 `docs/` 并纳入 git 长期保留（按功能域拆分，见 [README.md](README.md) 扩展约定）；**所有配置文件采用 JSON**（providers.json / personas.json / boards.json），加载校验仍走 pydantic，不引入 YAML 依赖；仓库根放简洁 `CLAUDE.md`，细节链接到 docs 子文档。
 - **影响**：config/loader.py 用标准库 json 解析；文档与代码中的配置示例一律 JSON。
+
+## D14 标准 12 人局 + v1 优化（对齐 whoisspy.ai 参考规则）
+
+- **背景**：参考 whoisspy.ai「AI 狼人杀对抗赛」十二人局规则（见 [games/werewolf.md](games/werewolf.md) 来源对照），补全标准 12 人局并优化 v1 最小局。
+- **决策**：
+  1. 新增 ruleset `standard-12`：3 普通狼 + 狼王 / 预女猎守 + 4 民；含警长系统（上警/竞选/PK/归票/2 票/移交撕毁）、守卫悖论、死亡优先级结算矩阵、开枪（猎人/狼王，毒死不可）、胜负四条狼胜路径（屠边×2 + 屠城 + 第 8 天时限）、每晚猎人/狼王技能状态通知。
+  2. v1（minimal）同步优化：发言上限 240 汉字截断；被投出者留遗言；白天平票改**平安日**（弃「带种子随机出局」）；定刀无合规目标改**空刀**（弃「随机合法目标」，引擎兜底同步改中性动作）；加天数上限 `max_days`（默认 8）。
+  3. 比赛平台机制（评分/匹配/下线/接口形态）不吸收，进 roadmap。
+- **备选**：照搬 perceive/interact 接口——否决，与 [agents-and-llm.md](agents-and-llm.md) 六层拼装 + JSON 协议冲突，只吸收规则语义。
+- **影响**：GameDefinition 状态机支持竞选/PK/开枪/移交子流程（不新增 Step 原语，用 SoloAction/SerialSpeech/Ballot 编排，见 [game-plugin.md](game-plugin.md)）；事件类型新增守卫/女巫/开枪/警徽/技能通知（见 [events-storage.md](events-storage.md)）；rules 切片增至 10 键。※ 待确认 5 项见 [games/werewolf.md](games/werewolf.md) 文末。

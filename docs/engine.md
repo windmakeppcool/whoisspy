@@ -32,7 +32,7 @@ while (winner := game.check_winner(state)) is None:
 
 1. 超时 60s/次 → 仅网络/5xx 重试 ≤2（退避 2s/5s）。
 2. 坏 JSON → 一次格式修复调用。
-3. 仍失败 → 兜底：发言=沉默、投票=弃权、定刀=随机合法目标（rng）、验人=no_result；补发 `player.fallback`（god）。
+3. 仍失败 → 兜底：发言=沉默、投票=弃权、定刀=**空刀（放弃刀人）**、验人=no_result、用药=不用药、守卫=不守；补发 `player.fallback`（god）。兜底一律取中性动作，绝不替玩家随机做主。
 4. 步级 5min 总时限：超时同步兜底结算当前步。
 
 全部尝试记入 llm_call（含失败），用量与排障不丢账。

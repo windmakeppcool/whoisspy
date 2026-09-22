@@ -50,16 +50,17 @@
 ```json
 {
   "boards": [
-    { "id": "p6-classic", "game_type": "werewolf", "roles": { "wolf": 2, "seer": 1, "villager": 3 }, "wolf_meeting_rounds": 2 },
-    { "id": "p8-classic", "game_type": "werewolf", "roles": { "wolf": 2, "seer": 1, "villager": 5 }, "wolf_meeting_rounds": 2 },
-    { "id": "p10-no-seer", "game_type": "werewolf", "roles": { "wolf": 3, "villager": 7 }, "wolf_meeting_rounds": 2 }
+    { "id": "p6-classic", "game_type": "werewolf", "ruleset": "minimal", "roles": { "wolf": 2, "seer": 1, "villager": 3 }, "wolf_meeting_rounds": 2, "max_days": 8 },
+    { "id": "p8-classic", "game_type": "werewolf", "ruleset": "minimal", "roles": { "wolf": 2, "seer": 1, "villager": 5 }, "wolf_meeting_rounds": 2, "max_days": 8 },
+    { "id": "p10-no-seer", "game_type": "werewolf", "ruleset": "minimal", "roles": { "wolf": 3, "villager": 7 }, "wolf_meeting_rounds": 2, "max_days": 8 },
+    { "id": "p12-standard", "game_type": "werewolf", "ruleset": "standard-12", "roles": { "wolf": 3, "wolf_king": 1, "seer": 1, "witch": 1, "hunter": 1, "guard": 1, "villager": 4 }, "wolf_meeting_rounds": 2, "max_days": 8 }
   ]
 }
 ```
 
-- 只配角色组合（D3）；服务端 `validate_board` 校验（见 [games/werewolf.md](games/werewolf.md)）。
+- 只配角色组合（D3）；服务端按 `ruleset` 分别 `validate_board`（见 [games/werewolf.md](games/werewolf.md)）。
+- `ruleset`：`minimal`（v1）或 `standard-12`（标准 12 人局，D14）；`max_days` 天数上限，超时仍存活狼 → 狼胜。
 - `custom` 板子由请求体给 roles，同样走校验。
-- 后续标准局在此加 `ruleset` 档位字段（D2）。
 
 ## 密钥安全（全局安全规范）
 

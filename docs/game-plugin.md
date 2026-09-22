@@ -50,6 +50,13 @@ class GameDefinition(Protocol):
 
 游戏的状态机用这 4 个原语编排（`next_step` 产出 Step），结算规则写在游戏插件内；不新增原语类型，除非至少两个目标游戏都需要（防抽象泄漏）。
 
+补充执行语义：
+
+- **夜间并行**：同夜多个 SoloAction（守卫/狼刀/验人/用药）互不通气、可并行收集；狼队内部先经 ChannelMeeting 商量再收刀（并行提案多数决）。
+- **复合动作**：ActionRequest 支持「choice + target」组合（女巫：救/毒/不用药；警长：顺/逆时针、移交/撕毁；猎人/狼王：开枪目标/不开枪），`validate_action` 校验合法性（禁连守、药数、开枪资格、目标存活等）。
+- **Ballot 的 tie_policy**：`random`（带种子随机）、`no_exile`（平安日/丢徽）、`pk_then_no_exile`（PK 发言后重投，仍平则平安日——PK 由状态机编排 SerialSpeech + 二次 Ballot，非原语内建）。
+- **结算链**：死亡结算后的连锁技能（开枪→枪杀、警徽移交）由状态机展开为后续 Step，每死一档立即 check_winner。
+
 ## 新游戏接入清单
 
 1. `games/<name>/definition.py` 实现 GameDefinition（含规则切片）。

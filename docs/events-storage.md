@@ -12,12 +12,19 @@
 | `phase.started` / `phase.ended` | public | 阶段边界 |
 | `channel.round.started` / `channel.round.ended` | god | 频道轮次边界 |
 | `channel.message` | seat=频道成员 | 频道发言（狼队夜聊） |
-| `night.kill_target` | god | 定刀过程（提案分布/决胜） |
+| `night.kill_target` | god | 定刀过程（提案分布/决胜/空刀） |
+| `night.guard_target` | god | 守卫守护目标（standard-12） |
 | `night.seer_query` / `night.seer_result` | result 仅预言家 | 验人 |
-| `night.resolved` | public | 夜里死讯（不报过程） |
-| `player.speech` | public | 白天发言 |
+| `night.witch_action` | god | 女巫用药（救/毒/不用，standard-12） |
+| `night.resolved` | public | 夜里死讯/平安夜（不报过程与死因；payload 含死因供 god 复盘） |
+| `skill_state.notice` | seat=本人 | 猎人/狼王每晚技能状态（能否开枪，standard-12） |
+| `gun.shoot` | public | 猎人/狼王开枪带人 |
+| `sheriff.registered` | public | 上警名单 |
+| `sheriff.badge` | public | 当选/移交/撕毁警徽 |
+| `player.speech` | public | 发言（含竞选宣言/归票；`phase` 区分） |
+| `player.last_words` | public | 遗言（被投出者） |
 | `player.monologue` | god | 内心独白（D6） |
-| `vote.cast` / `vote.resolved` | public | 投票 / 计票结果 |
+| `vote.cast` / `vote.resolved` | public | 投票（含警长投票/2 票权重）/ 计票结果 |
 | `player.fallback` | god | 容错兜底触发记录 |
 
 可见性由游戏插件 `visibility()` 标注（[game-plugin.md](game-plugin.md)），**出站前统一过滤**（支柱 3）：同一过滤函数服务 REST 与 SSE；沉浸视角响应体中不得出现任何 god/seat 数据（有测试锁死）。
