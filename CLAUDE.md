@@ -4,7 +4,7 @@
 
 设计文档在 `docs/`（长期维护，按功能域拆分），细节以文档为准：
 
-- 架构总览与扩展约定：[docs/README.md](docs/README.md)、[docs/architecture.md](docs/architecture.md)
+- 架构总览与扩展约定：[README.md](README.md)、[docs/architecture.md](docs/architecture.md)
 - Agent/LLM（座位级接入、prompt 分层）：[docs/agents-and-llm.md](docs/agents-and-llm.md)
 - 游戏插件契约（新增游戏看这里）：[docs/game-plugin.md](docs/game-plugin.md)、[docs/games/werewolf.md](docs/games/werewolf.md)
 - 事件/存储/引擎/前端/API：[docs/events-storage.md](docs/events-storage.md)、[docs/engine.md](docs/engine.md)、[docs/frontend.md](docs/frontend.md)、[docs/api.md](docs/api.md)

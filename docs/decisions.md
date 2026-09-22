@@ -77,7 +77,7 @@
 ## D13 文档与配置格式
 
 - **背景**：设计文档要长期维护、随功能扩展；配置文件格式要统一。
-- **决策**：设计文档全部放 `docs/` 并纳入 git 长期保留（按功能域拆分，见 [README.md](README.md) 扩展约定）；**所有配置文件采用 JSON**（providers.json / personas.json / boards.json），加载校验仍走 pydantic，不引入 YAML 依赖；仓库根放简洁 `CLAUDE.md`，细节链接到 docs 子文档。
+- **决策**：设计文档全部放 `docs/` 并纳入 git 长期保留（按功能域拆分，见 [根 README](../README.md) 扩展约定）；**所有配置文件采用 JSON**（providers.json / personas.json / boards.json），加载校验仍走 pydantic，不引入 YAML 依赖；仓库根放简洁 `CLAUDE.md`，细节链接到 docs 子文档。
 - **影响**：config/loader.py 用标准库 json 解析；文档与代码中的配置示例一律 JSON。
 
 ## D14 标准 12 人局 + v1 优化（对齐 whoisspy.ai 参考规则）
