@@ -1,0 +1,30 @@
+# Playwright MCP 浏览器产物
+.playwright-mcp/
+
+# 本地数据（配置含 key 引用、SQLite 库文件）
+backend/data/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+dist/
+*.local
+
+# 环境变量
+.env
+.env.*
+
+# 编辑器/系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
