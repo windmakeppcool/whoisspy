@@ -27,12 +27,33 @@ class MatchVM:
     winner: str | None = None
 
 
+def _set_seat_alive(seats: list[dict[str, Any]], seat: int, alive: bool) -> None:
+    """标记座位存活状态（座位不存在时补一条最小记录）。"""
+    for s in seats:
+        if s.get("seat") == seat:
+            s["alive"] = alive
+            return
+    seats.append({"seat": seat, "role": "", "alive": alive})
+
+
+def _dead_seats(payload: dict[str, Any]) -> list[int]:
+    """从 night.resolved 载荷提取死亡座位列表。
+
+    引擎真实格式为 deaths: {seat: cause}（SSE JSON 反序列化后键为字符串）；
+    兼容旧格式 dead: [seat]。
+    """
+    deaths = payload.get("deaths")
+    if deaths is None:
+        return [int(s) for s in (payload.get("dead") or [])]
+    return [int(s) for s in deaths.keys()]
+
+
 def apply_event(vm: MatchVM, ev: Event, god_view: bool) -> MatchVM:
     """应用单个事件到 ViewModel（纯函数，返回新 VM）。"""
     p = ev.payload
     next_vm = MatchVM(
         phase=vm.phase, day=vm.day, label=vm.label,
-        feed=list(vm.feed), seats=list(vm.seats),
+        feed=list(vm.feed), seats=[dict(s) for s in vm.seats],  # 座位 dict 拷贝，保持纯函数
         finished=vm.finished, winner=vm.winner,
     )
 
@@ -42,6 +63,18 @@ def apply_event(vm: MatchVM, ev: Event, god_view: bool) -> MatchVM:
         next_vm.phase = "night" if phase.startswith("night") or phase in ("wolf_meeting", "seer_check", "witch_turn", "night_resolve") else "day"
         next_vm.day = int(p.get("day", ev.day_index))
         next_vm.label = PHASE_LABELS.get(phase, phase)
+
+    # 座次表数据源：role.dealt（座位级可见性，角色由 render_seats 按视角隐藏）
+    elif ev.type == "role.dealt":
+        seat = int(p.get("seat", 0))
+        role = str(p.get("role", ""))
+        existing = next((s for s in next_vm.seats if s.get("seat") == seat), None)
+        if existing is not None:
+            existing["role"] = role
+            existing["alive"] = True
+        else:
+            next_vm.seats.append({"seat": seat, "role": role, "alive": True})
+        next_vm.seats.sort(key=lambda s: s.get("seat", 0))
 
     # 发言类
     elif ev.type == "player.speech":
@@ -66,12 +99,14 @@ def apply_event(vm: MatchVM, ev: Event, god_view: bool) -> MatchVM:
             next_vm.feed.append({"type": "system", "text": f"狼队选择击杀 {target}号"})
 
     elif ev.type == "night.resolved":
-        dead = p.get("dead", [])
-        if not dead:
+        dead_seats = _dead_seats(p)
+        for s in dead_seats:
+            _set_seat_alive(next_vm.seats, s, False)  # 死亡事件同步存活状态
+        if not dead_seats:
             next_vm.feed.append({"type": "system", "text": "昨夜平安夜"})
         else:
-            seats = "、".join(f"{s}号" for s in dead)
-            next_vm.feed.append({"type": "system", "text": f"昨夜死亡：{seats}"})
+            seats_text = "、".join(f"{s}号" for s in dead_seats)
+            next_vm.feed.append({"type": "system", "text": f"昨夜死亡：{seats_text}"})
 
     # 投票
     elif ev.type == "vote.cast":
@@ -81,6 +116,11 @@ def apply_event(vm: MatchVM, ev: Event, god_view: bool) -> MatchVM:
             next_vm.feed.append({"type": "vote", "speaker": seat, "text": f"{seat}号 弃票"})
         else:
             next_vm.feed.append({"type": "vote", "speaker": seat, "text": f"{seat}号 投票给 {target}号"})
+
+    elif ev.type == "vote.resolved":
+        exiled = p.get("exiled")
+        if exiled:  # 放逐成功 → 标记死亡；平票（exiled=None）不改存活
+            _set_seat_alive(next_vm.seats, int(exiled), False)
 
     # 对局结束
     elif ev.type == "match.finished":

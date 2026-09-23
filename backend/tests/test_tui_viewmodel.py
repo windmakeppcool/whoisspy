@@ -60,3 +60,97 @@ def test_沉浸视角过滤独白():
     vm = apply_event(vm, ev, god_view=False)
 
     assert len(vm.feed) == 0
+
+
+def test_发牌事件填充座次表():
+    """验证 role.dealt 投影出座次表（座位/角色/存活）。"""
+    vm = MatchVM()
+    ev = Event(type="role.dealt", payload={"seat": 3, "role": "wolf"},
+               day_index=0, phase="", vis=VisMeta(level="seat", seats=[3]))
+    vm = apply_event(vm, ev, god_view=True)
+
+    assert len(vm.seats) == 1
+    assert vm.seats[0]["seat"] == 3
+    assert vm.seats[0]["role"] == "wolf"
+    assert vm.seats[0]["alive"] is True
+
+
+def test_发牌事件多座位按座位号排序():
+    """验证多次 role.dealt 累积且按座位号排序。"""
+    vm = MatchVM()
+    for seat, role in [(2, "villager"), (1, "seer"), (3, "wolf")]:
+        ev = Event(type="role.dealt", payload={"seat": seat, "role": role},
+                   day_index=0, phase="", vis=VisMeta(level="seat", seats=[seat]))
+        vm = apply_event(vm, ev, god_view=True)
+
+    assert [s["seat"] for s in vm.seats] == [1, 2, 3]
+    assert vm.seats[0]["role"] == "seer"
+
+
+def test_发牌事件上帝视角与沉浸视角都填充座次():
+    """role.dealt 是座位级可见性：沉浸视角也维护座次表，角色由渲染层隐藏。"""
+    vm = MatchVM()
+    ev = Event(type="role.dealt", payload={"seat": 1, "role": "wolf"},
+               day_index=0, phase="", vis=VisMeta(level="seat", seats=[1]))
+    vm = apply_event(vm, ev, god_view=False)
+
+    assert len(vm.seats) == 1
+    assert vm.seats[0]["role"] == "wolf"  # 数据在 VM 中，渲染层 render_seats 按视角隐藏
+
+
+def test_夜间结算更新存活_引擎deaths载荷():
+    """验证 night.resolved 的 deaths 载荷（引擎真实格式）标记死亡并播报。"""
+    vm = MatchVM(seats=[
+        {"seat": 1, "role": "wolf", "alive": True},
+        {"seat": 2, "role": "villager", "alive": True},
+    ])
+    ev = make_event("night.resolved", {"day": 1, "deaths": {2: "knife"}})
+    vm = apply_event(vm, ev, god_view=True)
+
+    assert vm.seats[0]["alive"] is True
+    assert vm.seats[1]["alive"] is False
+    assert any("昨夜死亡" in f.get("text", "") and "2号" in f.get("text", "")
+               for f in vm.feed)
+
+
+def test_夜间结算平安夜不改存活():
+    """验证无死亡时不改存活并播报平安夜。"""
+    vm = MatchVM(seats=[{"seat": 1, "role": "wolf", "alive": True}])
+    ev = make_event("night.resolved", {"day": 1, "deaths": {}})
+    vm = apply_event(vm, ev, god_view=True)
+
+    assert vm.seats[0]["alive"] is True
+    assert any(f.get("text") == "昨夜平安夜" for f in vm.feed)
+
+
+def test_夜间结算deaths键为字符串时也能标记():
+    """SSE JSON 反序列化后 deaths 的键是字符串，需兼容。"""
+    vm = MatchVM(seats=[{"seat": 5, "role": "villager", "alive": True}])
+    ev = make_event("night.resolved", {"day": 1, "deaths": {"5": "poison"}})
+    vm = apply_event(vm, ev, god_view=True)
+
+    assert vm.seats[0]["alive"] is False
+
+
+def test_放逐结算更新存活():
+    """验证 vote.resolved 的 exiled 座位标记死亡。"""
+    vm = MatchVM(seats=[
+        {"seat": 3, "role": "villager", "alive": True},
+        {"seat": 4, "role": "wolf", "alive": True},
+    ])
+    ev = make_event("vote.resolved", {"votes": {1: 3}, "title": "放逐投票",
+                                      "tied": [], "exiled": 3, "tie": False})
+    vm = apply_event(vm, ev, god_view=True)
+
+    assert vm.seats[0]["alive"] is False
+    assert vm.seats[1]["alive"] is True
+
+
+def test_放逐平票不改存活():
+    """验证平票（exiled=None）不改存活。"""
+    vm = MatchVM(seats=[{"seat": 3, "role": "villager", "alive": True}])
+    ev = make_event("vote.resolved", {"votes": {}, "title": "放逐投票",
+                                      "tied": [3], "exiled": None, "tie": True})
+    vm = apply_event(vm, ev, god_view=True)
+
+    assert vm.seats[0]["alive"] is True
