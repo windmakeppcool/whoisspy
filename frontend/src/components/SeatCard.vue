@@ -17,7 +17,7 @@ const teamClass = computed(() => (props.seat.team === 'wolf' ? 'wolf' : 'good'))
 <template>
   <article
     class="seat-card"
-    :class="[teamClass, { dead: !seat.alive, speaking: isSpeaking, sheriff }]"
+    :class="[teamClass, { dead: !seat.alive, speaking: isSpeaking, sheriff, god: godView }]"
     :aria-label="`${seat.id}号 ${seat.name}`"
   >
     <span v-if="sheriff" class="badge-sheriff" title="警长">🏅</span>
@@ -60,7 +60,7 @@ const teamClass = computed(() => (props.seat.team === 'wolf' ? 'wolf' : 'good'))
   box-shadow: 0 6px 0 var(--ink);
 }
 
-/* 阵营色左边条（上帝视角才透出阵营信息，此处仅为色条暗示） */
+/* 阵营色左边条——仅上帝视角透出（沉浸视角保持中性，防阵营泄漏） */
 .seat-card::before {
   content: '';
   position: absolute;
@@ -71,8 +71,8 @@ const teamClass = computed(() => (props.seat.team === 'wolf' ? 'wolf' : 'good'))
   border-radius: 4px;
   background: var(--paper-dim);
 }
-.seat-card.wolf::before { background: var(--wolf); }
-.seat-card.good::before { background: var(--good); }
+.seat-card.god.wolf::before { background: var(--wolf); }
+.seat-card.god.good::before { background: var(--good); }
 
 .seat-card.dead {
   opacity: 0.62;
