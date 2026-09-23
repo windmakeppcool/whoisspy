@@ -37,6 +37,19 @@ export const api = {
   usage(id: number | string): Promise<UsageSummary> {
     return get(`/api/matches/${id}/usage`)
   },
+  async exportDialog(id: number | string): Promise<void> {
+    const resp = await fetch(`${BASE}/api/matches/${id}/export`)
+    if (!resp.ok) throw new Error(`导出失败: ${resp.status}`)
+    const blob = await resp.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `match-${id}-dialog.json`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  },
   async stop(id: number | string): Promise<{ ok: boolean }> {
     const resp = await fetch(`${BASE}/api/matches/${id}/stop`, { method: 'POST' })
     return j(resp)

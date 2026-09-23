@@ -3,6 +3,7 @@
 import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useMatchStore } from '../stores/match'
+import { api } from '../api/client'
 import { boardLabel } from '../model/types'
 import GameModeMenu from '../components/GameModeMenu.vue'
 import PhaseBanner from '../components/PhaseBanner.vue'
@@ -57,6 +58,16 @@ const speakingSeat = computed(() => {
 function back() {
   history.back()
 }
+
+async function exportDialog() {
+  if (!store.match) return
+  try {
+    await api.exportDialog(store.match.id)
+  } catch (e) {
+    console.error('导出失败:', e)
+    alert('导出失败，请重试')
+  }
+}
 </script>
 
 <template>
@@ -69,6 +80,11 @@ function back() {
       class="stop-btn"
       @click="store.stop()"
     >⏹ 终止对局</button>
+    <button
+      v-if="store.match"
+      class="export-btn"
+      @click="exportDialog"
+    >📥 导出对话</button>
     <button class="god-btn" :class="{ on: store.godView }" @click="store.toggleGod()">
       {{ store.godView ? '👁️ 上帝视角' : '🙈 沉浸视角' }}
     </button>
@@ -129,6 +145,8 @@ function back() {
 .mid-chip { font-size: 12px; font-weight: 700; color: #55507a; background: rgba(255,255,255,.7); border-radius: 999px; padding: 3px 10px; }
 .stop-btn { margin-left: auto; padding: 7px 14px; font-size: 13px; font-weight: 900; background: #ffe9ef; color: var(--wolf); border: var(--border-w) solid var(--wolf); border-radius: 999px; box-shadow: 0 3px 0 var(--wolf); }
 .stop-btn:hover { transform: translateY(-1px); }
+.export-btn { padding: 7px 14px; font-size: 13px; font-weight: 900; background: #e8f4ff; color: var(--ink); border: var(--border-w) solid var(--ink); border-radius: 999px; box-shadow: var(--shadow-pop-sm); }
+.export-btn:hover { transform: translateY(-1px); }
 .god-btn { padding: 7px 15px; font-size: 13.5px; font-weight: 900; border: var(--border-w) solid var(--ink); border-radius: 999px; box-shadow: var(--shadow-pop-sm); background: var(--paper); }
 .god-btn.on { background: var(--sheriff); }
 .loading { text-align: center; padding: 60px; font-weight: 700; color: var(--ink); }

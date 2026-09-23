@@ -14,11 +14,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.config.defaults import DEFAULT_PERSONAS, DEFAULT_PROVIDERS
 from app.engine.runner import MatchRunner
+from app.export.dialog import render_dialog
 from app.games.registry import PRESETS, resolve_board
 from app.llm.gateway import OpenAICompatGateway
 from app.storage.repo import SqliteMatchRepository, SqliteUsageRepository
@@ -183,6 +184,22 @@ def create_app(db_path: str | None = None) -> FastAPI:
     @app.get("/api/matches/{match_id}/usage")
     async def usage(match_id: int) -> dict[str, Any]:
         return await usage_repo.summarize(match_id)
+
+    @app.get("/api/matches/{match_id}/export")
+    async def export_dialog(match_id: int) -> JSONResponse:
+        """导出整局对话 JSON（上帝视角），用于离线复盘。"""
+        m = await match_repo.get_match(match_id)
+        if m is None:
+            raise HTTPException(status_code=404, detail="对局不存在")
+        # view=god 获取全量事件
+        events = await match_repo.list_events(match_id, after_seq=0, view="god")
+        data = render_dialog(match_id=match_id, game_type=m["game_type"], events=events)
+        return JSONResponse(
+            content=data,
+            headers={
+                "Content-Disposition": f"attachment; filename=\"match-{match_id}-dialog.json\""
+            },
+        )
 
     @app.post("/api/matches/{match_id}/stop")
     async def stop(match_id: int) -> dict[str, Any]:
