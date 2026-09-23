@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Any, AsyncGenerator
 
 import httpx
@@ -32,6 +33,18 @@ class SSEClient:
         self.last_seq = seq
         return True
 
+    def _reconnect_headers(self) -> dict[str, str]:
+        """重连时的 HTTP headers。"""
+        headers: dict[str, str] = {}
+        if self.last_seq > 0:
+            headers["Last-Event-ID"] = str(self.last_seq)
+        return headers
+
+    def _reconnect_delay(self, attempt: int) -> float:
+        """重连延迟（指数退避，上限 30 秒）。"""
+        delay = min(2 ** attempt, 30)
+        return float(delay)
+
     async def connect(self) -> None:
         """建立 SSE 连接。"""
         self._client = httpx.AsyncClient(timeout=None)
@@ -51,10 +64,7 @@ class SSEClient:
 
         assert self._client is not None
 
-        # 带 Last-Event-ID 重连
-        headers = {}
-        if self.last_seq > 0:
-            headers["Last-Event-ID"] = str(self.last_seq)
+        headers = self._reconnect_headers()
 
         async with self._client.stream(
             "GET", self.stream_url, headers=headers
@@ -63,7 +73,6 @@ class SSEClient:
 
             async for line in response.aiter_lines():
                 if line.startswith("data: "):
-                    import json
                     data = line[6:]
                     try:
                         event = json.loads(data)
