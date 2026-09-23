@@ -2,6 +2,11 @@
 
 REST + SSE；所有事件出站走同一可见性过滤（[events-storage.md](events-storage.md)）。
 
+## 启动入口
+
+- API 服务：`python -m app.main [--port N]`（uvicorn）。
+- TUI 观看器：`python -m app.main --tui [--match-id N] [--port N]`——同进程先拉起 API 再打开终端视图，走本页同一套 REST/SSE（决策见 [decisions.md](decisions.md) D16）。
+
 ## 端点
 
 | 方法 | 路径 | 说明 |
@@ -44,9 +49,10 @@ REST + SSE；所有事件出站走同一可见性过滤（[events-storage.md](ev
 ```
 id: 42
 event: game_event
-data: {"seq": 42, "type": "player.speech", "day_index": 2, "phase": "day_speech", "payload": {...}}
+data: {"seq": 42, "type": "player.speech", "day_index": 2, "phase": "day_speech", "payload": {...}, "vis": {"level": "public", "seats": []}}
 ```
 
-- `id: <seq>` 即游标；断线重连带 `Last-Event-ID` 先补发后订阅。
+- `id: <seq>` 即游标；断线重连以 **`last_event_id` 查询参数**先补发后订阅（前端 EventSource 与 TUI 客户端一致，D16）。
+- `data.vis` 为可见性元数据 `{level, seats}`：服务端已按 `view` 过滤，客户端（TUI）本地切视角时按 `vis.level` 二次过滤，无需重连。
 - `view` 决定过滤强度：immersive 只发 public（+本视角 seat——v1 观众无座位则纯 public）；god 全发。
-- 错误帧 `event: error`；对局结束发 `event: match_finished`。
+- 错误帧 `event: error`；对局结束发 `event: match_finished`（TUI 收到后停止重连）。

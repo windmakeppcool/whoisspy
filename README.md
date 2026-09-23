@@ -20,6 +20,11 @@
 | [decisions.md](decisions.md) | 关键决策记录（背景、决策、备选、影响） | **任何设计决策变更时追加条目** |
 | [roadmap.md](roadmap.md) | 暂缓项与后续方向 | 某项启动时移入对应文档展开 |
 
+## 运行入口
+
+- API 服务：`python -m app.main [--port N]`（uvicorn）。
+- TUI 观看器：`python -m app.main --tui [--match-id N] [--port N]`——同进程拉起 API 并打开终端观看视图，与 Web 前端共用同一套 REST/SSE（契约见 [api.md](api.md)，决策见 [decisions.md](decisions.md) D16）。
+
 ## 扩展约定（方便后续按功能扩展）
 
 - **新增游戏**：新建 `docs/games/<name>.md` 写规则范围/状态机/提示词切片；代码侧实现 `GameDefinition` + 注册 + prompts + boards 预设 + 测试。engine / agents / storage 不应为新游戏改动——如果必须改，说明插件契约有缺口，**先改 game-plugin.md 再动代码**。

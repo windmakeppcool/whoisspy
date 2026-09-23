@@ -96,3 +96,13 @@
 - **决策**：新增 ruleset `standard-9`，固定组合 **3 狼 + 预言家 + 女巫 + 猎人 + 3 民**（无守卫、无狼王），板子 id `p9-standard`。复用 standard 全部机制与胜负规则（`check_winner` 与状态机均按 `ruleset.startswith("standard")` 分派）；守卫步由角色存活驱动自动跳过，不为板子写状态机分支。
 - **备选**：为 9 人局开新 ruleset 分支实现（否决，机制重复）；放宽 standard-12 固定组合（否决，D14 的固定校验是防错设计，放宽会破坏既有测试语义）。
 - **影响**：`rules.validate_board` 增 `standard-9` 分派与 `STANDARD9_ROLES` 常量；registry 增 `p9-standard` 预设；前端 `boardLabel` 统一 standard 标签；boards.json 样例与 [games/werewolf.md](games/werewolf.md) 板子表同步。
+
+## D16 TUI 观看器与 SSE 续传/可见性出站语义（2026-09-23）
+
+- **背景**：Web 前端之外需要终端「边跑边追更」的轻量入口（`--tui`）；实现终审发现三处契约缺口：SSE 断线续传游标（服务端读 `last_event_id` 查询参数、客户端只发 `Last-Event-ID` 头，游标传不进去；`events()` 无重试循环）；出站事件不带 `vis`、TUI 以 god 连流后客户端无依据做沉浸过滤（细化 [D8](#d8-视角默认沉浸一键上帝)）；座次表无数据源（缺 `role.dealt` 投影）。
+- **决策**：
+  1. 新增 TUI 子系统 `app/tui/`（SSE 客户端 + ViewModel 投影 + 纯函数渲染 + 主循环），入口 `python -m app.main --tui [--match-id N]`，与 Web 前端共用同一 REST/SSE 契约，不新增专属端点。
+  2. SSE 断线续传游标统一为 **`last_event_id` 查询参数**（与前端 EventSource 重连一致）；TUI 客户端外层重试循环按 `_reconnect_delay` 指数退避重连，收到 `event: match_finished` 停止（保持对局结束 TUI 自然退出）。
+  3. 出站事件统一附带 `vis {level, seats}`；TUI 始终以 `view=god` 连流，**沉浸过滤在客户端按 `vis.level` 做**（仅 public，与 `app/core.filtered_view` 语义一致），切视角不重连、不丢历史；`role.dealt`（seat 级）例外仍维护座次表，角色由渲染层按视角隐藏，不进对话流。
+- **备选**：服务端改读 `Last-Event-ID` 头——否决，前端已按查询参数实现，双轨徒增不一致；视角切换时按 view 重连——否决，丢历史事件且需补拉重放；沉浸过滤只留服务端——否决，单条 god 连接无法响应客户端本地切视角。
+- **影响**：`sse_client` 提供重试循环与游标 URL；`_event_dict` 增 `vis` 字段（前端忽略多余字段，向后兼容）；`apply_event` 增沉浸过滤与 `role.dealt`/死亡存活投影；[api.md](api.md) 同步续传与启动入口说明。
