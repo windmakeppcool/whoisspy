@@ -182,10 +182,13 @@ SHERIFF_REGISTER（上警报名）→ SHERIFF_SPEECH → SHERIFF_VOTE [→ SHERI
 | `p6-classic` | minimal | 2 狼 + 1 预 + 3 民 | v1 默认 |
 | `p8-classic` | minimal | 2 狼 + 1 预 + 5 民 | |
 | `p10-no-seer` | minimal | 3 狼 + 7 民 | 无预言家压力测试 |
+| `p9-standard` | standard-9 | 3 狼 + 1 预 + 1 女 + 1 猎 + 3 民 | 标准 9 人局（无守卫/狼王） |
 | `p12-standard` | standard-12 | 3 狼 + 1 狼王 + 1 预 + 1 女 + 1 猎 + 1 守 + 4 民 | 标准 12 人局 |
 | `custom` | 随请求 | 请求体给 roles，服务端按 ruleset 校验 | |
 
-每板含 `wolf_meeting_rounds` 与天数上限 `max_days`（默认 8）；validate_board 按 ruleset 分别校验（standard-12 固定 12 人上述组合，暂不开放 custom 改神职数）。
+每板含 `wolf_meeting_rounds` 与天数上限 `max_days`（默认 8）；validate_board 按 ruleset 分别校验（standard-9 固定 3狼+预女猎+3民、standard-12 固定 12 人上述组合，暂不开放 custom 改神职数；minimal 按 6-10 人边界校验）。
+
+standard-9 复用 standard 全部机制（警长选举/女巫双药/开枪/屠边胜负），仅因无守卫角色自动跳过守卫步——状态机由角色存活驱动，无需为板子写分支。
 
 ## 七、来源对照与待确认
 

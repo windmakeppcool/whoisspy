@@ -71,3 +71,18 @@ describe('project', () => {
     expect(full.feed.some(f => f.kind === 'speech' && f.text === '大家好')).toBe(true)
   })
 })
+
+import { boardLabel } from './types'
+
+describe('boardLabel', () => {
+  it('standard 规则集显示全名', () => {
+    expect(boardLabel('standard-12')).toBe('标准 12 人局')
+    expect(boardLabel('standard-9')).toBe('标准 9 人局')
+  })
+  it('minimal 按人数求和', () => {
+    expect(boardLabel('minimal', { wolf: 3, seer: 1, witch: 1, hunter: 1, villager: 3 })).toBe('9 人局')
+  })
+  it('无 counts 兜底极简局', () => {
+    expect(boardLabel('minimal')).toBe('极简局')
+  })
+})

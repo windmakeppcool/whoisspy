@@ -3,6 +3,7 @@
 import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useMatchStore } from '../stores/match'
+import { boardLabel } from '../model/types'
 import GameModeMenu from '../components/GameModeMenu.vue'
 import PhaseBanner from '../components/PhaseBanner.vue'
 import SeatColumn from '../components/SeatColumn.vue'
@@ -62,7 +63,7 @@ function back() {
   <nav class="topbar">
     <button class="back" @click="back">← 返回</button>
     <p class="brand"><span class="logo">🐺</span><span class="word">whoisspy</span></p>
-    <span v-if="store.match" class="mid-chip">#{{ store.match.id }} · {{ store.match.ruleset === 'standard-12' ? '标准 12 人局' : '极简局' }}</span>
+    <span v-if="store.match" class="mid-chip">#{{ store.match.id }} · {{ boardLabel(store.match.ruleset, store.match.board?.roles) }}</span>
     <button
       v-if="store.match && (store.match.status === 'running' || store.match.status === 'created')"
       class="stop-btn"

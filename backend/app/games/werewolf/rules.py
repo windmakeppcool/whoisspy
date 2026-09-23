@@ -67,22 +67,42 @@ STANDARD12_ROLES = {
     ROLE_HUNTER: 1, ROLE_GUARD: 1, ROLE_VILLAGER: 4,
 }
 
+STANDARD9_ROLES = {
+    ROLE_WEREWOLF: 3, ROLE_SEER: 1, ROLE_WITCH: 1, ROLE_HUNTER: 1,
+    ROLE_VILLAGER: 3,
+}
+
 
 def validate_board_standard(cfg: dict[str, Any]) -> BoardSpec:
     """standard-12：固定 12 人组合（暂不开放 custom 改神职数）。"""
+    return _validate_fixed(cfg, STANDARD12_ROLES, "standard-12")
+
+
+def validate_board_standard9(cfg: dict[str, Any]) -> BoardSpec:
+    """standard-9：固定 9 人组合 3狼+预女猎+3民（无守卫，暂不开放 custom）。"""
+    return _validate_fixed(cfg, STANDARD9_ROLES, "standard-9")
+
+
+def _validate_fixed(cfg: dict[str, Any], expected: dict[str, int], ruleset: str) -> BoardSpec:
     roles = dict(cfg.get("roles") or {})
     _check_role_sum(roles)
-    if roles != STANDARD12_ROLES:
-        raise ValueError("standard-12 仅支持固定组合: 3狼+狼王+预女猎守+4民")
+    if roles != expected:
+        raise ValueError(f"{ruleset} 仅支持固定组合: {_fmt_roles(expected)}")
     rounds = cfg.get("wolf_meeting_rounds", 2)
     days = cfg.get("max_days", 8)
-    return BoardSpec(game_type="werewolf", ruleset="standard-12", roles=dict(STANDARD12_ROLES),
+    return BoardSpec(game_type="werewolf", ruleset=ruleset, roles=dict(expected),
                      wolf_meeting_rounds=int(rounds), max_days=int(days))
+
+
+def _fmt_roles(roles: dict[str, int]) -> str:
+    return "+".join(f"{n}{role}" for role, n in roles.items())
 
 
 def validate_board(cfg: dict[str, Any], ruleset: str) -> BoardSpec:
     if ruleset == "standard-12":
         return validate_board_standard(cfg)
+    if ruleset == "standard-9":
+        return validate_board_standard9(cfg)
     return validate_board_minimal(cfg)
 
 
@@ -221,6 +241,7 @@ def check_winner_standard(
 
 def check_winner(ruleset: str, roles: dict[int, str], alive: dict[int, bool],
                  day: int = 1, max_days: int = 8) -> GameResult | None:
-    if ruleset == "standard-12":
+    # standard-9 与 standard-12 同走屠边+屠城+时限；minimal 走屠城+时限
+    if ruleset.startswith("standard"):
         return check_winner_standard(roles, alive, day, max_days)
     return check_winner_minimal(roles, alive, day, max_days)

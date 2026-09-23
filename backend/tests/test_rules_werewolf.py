@@ -20,6 +20,7 @@ from app.games.werewolf.rules import (
     resolve_night,
     check_winner_minimal,
     check_winner_standard,
+    validate_board,
     validate_board_minimal,
     validate_board_standard,
     deal_roles,
@@ -274,3 +275,51 @@ class TestWinnerStandard:
         alive = {s: True for s in roles}
         alive[1] = False  # 死1民
         assert check_winner_standard(roles, alive, day=2, max_days=8) is None
+
+
+# ---------- standard-9（标准 9 人局） ----------
+
+class TestValidateBoardStandard9:
+    def test_标准9人局通过(self):
+        spec = validate_board(
+            {"roles": {"wolf": 3, "seer": 1, "witch": 1, "hunter": 1, "villager": 3}},
+            "standard-9")
+        assert spec.player_count == 9
+        assert spec.ruleset == "standard-9"
+        assert spec.roles["villager"] == 3
+
+    def test_错误组合拒绝(self):
+        # 少民
+        with pytest.raises(ValueError):
+            validate_board({"roles": {"wolf": 3, "seer": 1, "witch": 1, "hunter": 1,
+                                      "villager": 2}}, "standard-9")
+        # 多带守卫（standard-9 无守卫）
+        with pytest.raises(ValueError):
+            validate_board({"roles": {"wolf": 3, "seer": 1, "witch": 1, "guard": 1,
+                                      "villager": 3}}, "standard-9")
+        # 狼数不对
+        with pytest.raises(ValueError):
+            validate_board({"roles": {"wolf": 2, "seer": 1, "witch": 1, "hunter": 1,
+                                      "villager": 4}}, "standard-9")
+
+
+class TestWinnerStandard9:
+    def test_神职屠边_狼胜(self):
+        from app.games.werewolf.rules import check_winner
+        roles = {1: "wolf", 2: "wolf", 3: "wolf", 4: "seer", 5: "witch", 6: "hunter",
+                 7: "villager", 8: "villager", 9: "villager"}
+        # 三神全死，3狼 vs 3民 → 走神职屠边
+        alive = {**{s: False for s in (4, 5, 6)},
+                 **{s: True for s in (1, 2, 3, 7, 8, 9)}}
+        res = check_winner("standard-9", roles, alive, day=3, max_days=8)
+        assert res is not None and res.winner == "wolf"
+        assert "神职" in res.reason
+
+    def test_狼全灭_好人胜(self):
+        from app.games.werewolf.rules import check_winner
+        roles = {1: "wolf", 2: "wolf", 3: "wolf", 4: "seer", 5: "witch", 6: "hunter",
+                 7: "villager", 8: "villager", 9: "villager"}
+        alive = {**{s: False for s in (1, 2, 3)},
+                 **{s: True for s in (4, 5, 6, 7, 8, 9)}}
+        res = check_winner("standard-9", roles, alive, day=3, max_days=8)
+        assert res is not None and res.winner == "good"

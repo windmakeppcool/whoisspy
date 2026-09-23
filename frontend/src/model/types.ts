@@ -123,3 +123,11 @@ export interface MatchMock {
   chapters: Chapter[]
   build(chapterIndex: number): DemoState
 }
+
+// 板子展示标签：standard-12/9 显示全名，其余按人数（roles/seats 求和）
+export function boardLabel(ruleset: string, counts?: Record<string, number> | null): string {
+  if (ruleset === 'standard-12') return '标准 12 人局'
+  if (ruleset === 'standard-9') return '标准 9 人局'
+  const n = counts ? Object.values(counts).reduce((a, b) => a + b, 0) : 0
+  return n ? `${n} 人局` : '极简局'
+}

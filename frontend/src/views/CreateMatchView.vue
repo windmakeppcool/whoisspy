@@ -4,6 +4,7 @@ import { onMounted, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api/client'
 import { useCatalogStore } from '../stores/catalog'
+import { boardLabel } from '../model/types'
 
 const catalog = useCatalogStore()
 const router = useRouter()
@@ -57,7 +58,7 @@ async function submit() {
           @click="boardId = b.id"
         >
           <span class="b-name">{{ b.id }}</span>
-          <span class="b-sub">{{ b.ruleset === 'standard-12' ? '标准 12 人局' : `${Object.values(b.roles).reduce((a, c) => a + c, 0)} 人` }}</span>
+          <span class="b-sub">{{ boardLabel(b.ruleset, b.roles) }}</span>
           <span class="b-roles">
             <span v-for="(n, role) in b.roles" :key="role" class="role-chip">{{ role }}×{{ n }}</span>
           </span>

@@ -3,6 +3,7 @@
 import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMatchListStore } from '../stores/matchList'
+import { boardLabel } from '../model/types'
 
 const store = useMatchListStore()
 const router = useRouter()
@@ -39,7 +40,7 @@ async function create() {
         <button class="row" @click="open(m.id)">
           <span class="id-chip">#{{ m.id }}</span>
           <span class="info">
-            <span class="title">狼人杀 · {{ m.ruleset === 'standard-12' ? '标准 12 人局' : `${Object.values(m.board?.roles ?? {}).reduce((a, b) => a + b, 0)} 人局` }}</span>
+            <span class="title">狼人杀 · {{ boardLabel(m.ruleset, m.board?.roles) }}</span>
             <span class="sub">{{ m.seats.length }} 座位 · 种子 {{ m.rng_seed }}</span>
           </span>
           <span class="status" :class="m.status">{{ statusLabel[m.status] ?? m.status }}</span>

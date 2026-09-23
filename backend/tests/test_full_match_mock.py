@@ -111,3 +111,37 @@ class TestStandard12Mechanics:
         deaths = [e for e in events if e.type == "night.resolved"
                   and e.payload.get("deaths")]
         assert exiles and deaths
+
+
+class TestStandard9Mechanics:
+    """标准 9 人局：预设解析 + 整局机制（有警长、无守卫）。"""
+
+    def test_p9_standard预设解析(self):
+        from app.games.registry import PRESETS, resolve_board
+        assert "p9-standard" in PRESETS
+        game, spec = resolve_board({"id": "p9-standard"})
+        assert spec.ruleset == "standard-9"
+        assert spec.player_count == 9
+        assert spec.roles == {"wolf": 3, "seer": 1, "witch": 1, "hunter": 1, "villager": 3}
+
+    async def test_standard9整局_警长有_守卫无(self, repo):
+        from app.games.registry import resolve_board
+        game, spec = resolve_board({"id": "p9-standard"})
+        seats = [{"seat": i, "name": f"p{i}", "persona_id": "calm", "base_url": "",
+                  "api_key_env": "", "model": "mock", "role": ""} for i in range(1, 10)]
+        m = await repo.create_match(game_type="werewolf", ruleset="standard-9",
+                                    board={"id": "p9-standard"}, rng_seed=23, seats=seats)
+        roles = {a.seat: a.role for a in game.deal(spec, __import__("random").Random(23))}
+        llm = MockLLM(script=[], fail_rate=0.0)
+        runner = MatchRunner(match_id=m["id"], game=game, spec=spec, repo=repo,
+                             gateway=llm, seed=23, seat_meta=_seat_meta(roles))
+        result = await runner.run()
+        assert result is not None
+        events = await repo.list_events(m["id"], after_seq=0, view="god")
+        seqs = [e.seq for e in events]
+        assert seqs == list(range(1, len(seqs) + 1))
+        types = {e.type for e in events}
+        assert "sheriff.registered" in types   # 标准机制有警长选举
+        assert "skill_state.notice" in types   # 猎人在场有技能通知
+        assert "night.guard_target" not in types  # 9 人局无守卫，不产生守卫事件
+        assert any(e.type == "vote.resolved" and e.payload.get("exiled") for e in events)

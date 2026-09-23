@@ -89,3 +89,10 @@
   3. 比赛平台机制（评分/匹配/下线/接口形态）不吸收，进 roadmap。
 - **备选**：照搬 perceive/interact 接口——否决，与 [agents-and-llm.md](agents-and-llm.md) 六层拼装 + JSON 协议冲突，只吸收规则语义。
 - **影响**：GameDefinition 状态机支持竞选/PK/开枪/移交子流程（不新增 Step 原语，用 SoloAction/SerialSpeech/Ballot 编排，见 [game-plugin.md](game-plugin.md)）；事件类型新增守卫/女巫/开枪/警徽/技能通知（见 [events-storage.md](events-storage.md)）；rules 切片增至 10 键。※ 待确认 5 项见 [games/werewolf.md](games/werewolf.md) 文末。
+
+## D15 标准 9 人局（ruleset standard-9）
+
+- **背景**：在既有规则体系内补充更常见的 9 人局尺寸，让标准机制（警长/女巫/开枪/屠边）不锁死在 12 人。
+- **决策**：新增 ruleset `standard-9`，固定组合 **3 狼 + 预言家 + 女巫 + 猎人 + 3 民**（无守卫、无狼王），板子 id `p9-standard`。复用 standard 全部机制与胜负规则（`check_winner` 与状态机均按 `ruleset.startswith("standard")` 分派）；守卫步由角色存活驱动自动跳过，不为板子写状态机分支。
+- **备选**：为 9 人局开新 ruleset 分支实现（否决，机制重复）；放宽 standard-12 固定组合（否决，D14 的固定校验是防错设计，放宽会破坏既有测试语义）。
+- **影响**：`rules.validate_board` 增 `standard-9` 分派与 `STANDARD9_ROLES` 常量；registry 增 `p9-standard` 预设；前端 `boardLabel` 统一 standard 标签；boards.json 样例与 [games/werewolf.md](games/werewolf.md) 板子表同步。

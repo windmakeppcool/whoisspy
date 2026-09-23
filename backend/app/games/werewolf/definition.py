@@ -50,7 +50,9 @@ class WerewolfGame:
             "night": {}, "used_save": False, "used_poison": False,
             "last_guard": None, "sheriff": None, "seer_results": {},
             "elect_done": False,
-            "standard": spec.ruleset == "standard-12",
+            # standard-9 与 standard-12 共享标准机制（警长/女巫/开枪）；
+            # 守卫步由 _has_alive(guard) 自动跳过（9 人局无守卫）
+            "standard": spec.ruleset.startswith("standard"),
         }
         return st
 
