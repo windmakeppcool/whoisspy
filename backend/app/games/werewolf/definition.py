@@ -1,11 +1,12 @@
 """狼人杀 GameDefinition：minimal 与 standard-12 两套状态机（docs/games/werewolf.md）。
 
 State.extra 私有字段：
-- night: {kill, guard, saved, poison, seer_target} 本夜动作收集
+- night: {kill, guard, saved, poison} 本夜动作收集
 - used_save / used_poison: 女巫药（standard）
-- last_guard: 守卫上夜守护目标（standard）
+- last_guard: 守卫上夜守护目标（standard，禁连守）
 - sheriff: 警长座位（standard）
-- winner_reason
+- elect_done: 警长选举已完成（standard，仅 day1 一次）
+- seer_results: 验人结果缓存
 """
 
 from __future__ import annotations
@@ -48,31 +49,46 @@ class WerewolfGame:
         st.extra = {
             "night": {}, "used_save": False, "used_poison": False,
             "last_guard": None, "sheriff": None, "seer_results": {},
+            "elect_done": False,
             "standard": spec.ruleset == "standard-12",
         }
         return st
 
     # ---------- 状态机 ----------
 
+    def _after_night(self, state: GameState) -> Step:
+        """夜末分流：standard 第 1 天先警长竞选（死讯公布前），其余直接结算夜死。"""
+        if state.extra["standard"] and state.day == 1 and not state.extra.get("elect_done"):
+            return Step(kind="sheriff_elect", params={})
+        return Step(kind="night_resolve", params={})
+
     def next_step(self, state: GameState) -> Step:
         std: bool = state.extra["standard"]
         phase = state.phase
 
         if phase in ("", "init"):
-            return Step(kind="day_header", params={}) if std and state.day == 0 and False else \
-                Step(kind="night_start", params={})
+            return Step(kind="night_start", params={})
 
         if phase == "night_start":
+            # standard 夜序：守卫守护 → 狼刀 → 预言家 → 女巫
+            if std and self._has_alive(state, wr.ROLE_GUARD):
+                return Step(kind="guard_turn", params={})
+            return Step(kind="wolf_meeting", params={})
+        if phase == "guard_turn":
             return Step(kind="wolf_meeting", params={})
         if phase == "wolf_meeting":
-            return Step(kind="seer_check", params={}) if self._has_alive(state, wr.ROLE_SEER) else \
-                Step(kind="night_resolve", params={})
+            if self._has_alive(state, wr.ROLE_SEER):
+                return Step(kind="seer_check", params={})
+            if std and self._has_alive(state, wr.ROLE_WITCH):
+                return Step(kind="witch_turn", params={})
+            return self._after_night(state)
         if phase == "seer_check":
-            if std:
-                return Step(kind="witch_turn", params={}) if self._has_alive(state, wr.ROLE_WITCH) \
-                    else Step(kind="night_resolve", params={})
-            return Step(kind="night_resolve", params={})
+            if std and self._has_alive(state, wr.ROLE_WITCH):
+                return Step(kind="witch_turn", params={})
+            return self._after_night(state)
         if phase == "witch_turn":
+            return self._after_night(state)
+        if phase == "sheriff_elect":
             return Step(kind="night_resolve", params={})
         if phase == "night_resolve":
             return Step(kind="day_speech", params={})
@@ -100,32 +116,60 @@ class WerewolfGame:
     # ---------- 动作 schema ----------
 
     def action_schema(self, state: GameState, step: Step) -> ActionRequest | None:
-        kind, _p = step.kind, step.params
-        alive_others = sorted(s for s in state.roles if state.alive[s])
+        kind, p = step.kind, step.params
+        alive_all = sorted(s for s in state.roles if state.alive[s])
 
-        if kind == "wolf_meeting":
-            return ActionRequest(action_type="kill", candidates=self._wolves(state) and alive_others,
+        if kind in ("wolf_meeting", "channel_meeting"):
+            return ActionRequest(action_type="kill", candidates=alive_all,
                                  prompt="狼队夜聊：与队友商量今晚刀谁，然后提交你的刀人目标。")
         if kind == "closing":
-            return ActionRequest(action_type="kill", candidates=alive_others,
+            return ActionRequest(action_type="kill", candidates=alive_all,
                                  prompt="收刀：请提交最终刀人目标（0 为弃权/空刀）。")
         if kind == "seer_check":
-            return ActionRequest(action_type="check", candidates=alive_others,
+            return ActionRequest(action_type="check", candidates=alive_all,
                                  prompt="预言家：选择今晚查验的玩家。0 为不查验。")
         if kind == "witch_turn":
             return ActionRequest(
                 action_type="save" if not state.extra["used_save"] else "poison",
-                candidates=alive_others,
-                prompt="女巫：提交 action，type 为 save(救刀口)/poison(毒人)/pass(不用药)。target 为目标座位，pass 时 target=0。",
+                candidates=alive_all,
+                prompt="女巫：提交 action，type 为 save(救刀口)/poison(毒人)/pass(不用药)。"
+                       "target 为目标座位，pass/save 时 target=0。",
                 extra={"night_kill": state.extra["night"].get("kill") if not state.extra["used_save"] else None,
-                       "has_save": not state.extra["used_save"], "has_poison": not state.extra["used_poison"]})
-        if kind == "day_speech":
-            return ActionRequest(action_type="speech", prompt="白天发言：陈述你的判断与推理。")
-        if kind == "day_vote":
-            return ActionRequest(action_type="vote", candidates=alive_others,
-                                 prompt="投票：投出你最怀疑的玩家（0 为弃权）。")
+                       "has_save": not state.extra["used_save"],
+                       "has_poison": not state.extra["used_poison"]})
+        if kind == "guard_turn":
+            forbidden = state.extra.get("last_guard")  # 禁连守
+            cands = [s for s in alive_all if s != forbidden]
+            return ActionRequest(action_type="guard", candidates=cands,
+                                 prompt="守卫：选择今晚守护的玩家（不能连续两晚守同一人，可守自己）。0 为不守。")
+        if kind in ("serial_speech", "day_speech"):
+            purpose = p.get("purpose", "speech")
+            if purpose == "sheriff_speech":
+                return ActionRequest(action_type="speech",
+                                     prompt="发表警长竞选宣言：说服大家把票投给你。")
+            return ActionRequest(action_type="speech",
+                                 prompt="白天发言：陈述你的判断与推理。")
+        if kind in ("ballot", "day_vote"):
+            cands = p.get("candidates") or alive_all
+            title = p.get("title", "放逐投票")
+            return ActionRequest(action_type="vote", candidates=cands,
+                                 prompt=f"投票（{title}）：投出你最怀疑的玩家（0 为弃权）。")
         if kind == "last_words":
             return ActionRequest(action_type="speech", prompt="你已出局，请发表遗言。")
+        if kind == "sheriff_register":
+            return ActionRequest(action_type="register", candidates=[],
+                                 prompt="警长竞选：是否上警（action 的 yes 字段 true/false）。")
+        if kind == "gun":
+            return ActionRequest(action_type="shoot", candidates=alive_all,
+                                 prompt="你倒下了——开枪带走一名玩家（0 为放弃开枪）。")
+        if kind == "badge":
+            return ActionRequest(action_type="badge", candidates=alive_all,
+                                 prompt="临终移交警徽：target 为继承座位（0 = 撕毁警徽）。")
+        if kind == "solo_action":
+            at = p.get("action_type", "vote")
+            return ActionRequest(action_type=at,
+                                 candidates=p.get("candidates") or alive_all,
+                                 prompt=p.get("prompt", "执行你的行动。"))
         return None
 
     # ---------- 动作校验 ----------
@@ -133,7 +177,11 @@ class WerewolfGame:
     def validate_action(self, state: GameState, seat: int, action: dict[str, Any]) -> dict[str, Any]:
         t = str(action.get("type", ""))
         target = int(action.get("target") or 0)
-        return {"type": t, "target": target}
+        yes = action.get("yes")
+        out: dict[str, Any] = {"type": t, "target": target}
+        if isinstance(yes, bool):
+            out["yes"] = yes
+        return out
 
     # ---------- 归约 ----------
 
@@ -160,12 +208,18 @@ class WerewolfGame:
                 state.extra["used_poison"] = True
                 state.extra["night"]["poison"] = p.get("target")
         elif t == "night.resolved":
-            for seat_s, cause in (p.get("deaths") or {}).items():
+            for seat_s in (p.get("deaths") or {}):
                 state.alive[int(seat_s)] = False
         elif t == "vote.resolved":
             exile = p.get("exiled")
             if exile:
                 state.alive[int(exile)] = False
+        elif t == "gun.shoot":
+            tgt = p.get("target")
+            if tgt:
+                state.alive[int(tgt)] = False
+        elif t == "sheriff.registered":
+            state.extra["elect_done"] = True
         elif t == "sheriff.badge":
             if p.get("action") == "transfer":
                 state.extra["sheriff"] = p.get("to")
@@ -192,11 +246,12 @@ class WerewolfGame:
         if t == "night.seer_result":
             seer = self._role_seat(state, wr.ROLE_SEER)
             return VisMeta(level="seat", seats=[seer] if seer else [])
+        if t == "skill_state.notice":
+            seat = event.payload.get("seat")
+            return VisMeta(level="seat", seats=[seat] if seat else [])
         if t == "role.dealt":
             return VisMeta(level="seat", seats=[event.payload.get("seat")])
-        if t == "player.fallback":
-            return VisMeta(level="god")
-        if t == "player.monologue":
+        if t in ("player.fallback", "player.monologue"):
             return VisMeta(level="god")
         return VisMeta(level="public")
 
@@ -209,8 +264,14 @@ class WerewolfGame:
         base = ["overview"]
         mapping = {
             "wolf_meeting": ["night_wolf"], "closing": ["night_wolf"],
+            "channel_meeting": ["night_wolf"],
             "seer_check": ["night_seer"], "witch_turn": ["night_witch"],
+            "guard_turn": ["night_guard"],
             "day_speech": ["day_speech"], "last_words": ["day_speech"],
-            "day_vote": ["day_vote"], "exile_resolve": ["day_vote"],
+            "serial_speech": ["day_speech"],
+            "day_vote": ["day_vote"], "ballot": ["day_vote"],
+            "exile_resolve": ["day_vote"],
+            "sheriff_elect": ["sheriff_elect"], "sheriff_register": ["sheriff_elect"],
+            "badge": ["sheriff_power"], "gun": ["gun_skill"],
         }
         return base + mapping.get(step.kind, [])

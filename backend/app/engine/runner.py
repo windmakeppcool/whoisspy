@@ -126,7 +126,11 @@ class MatchRunner:
         if kind == "noop":
             return
         if kind == "night_start":
-            self._state.extra["night"] = {}  # 新夜清空动作收集
+            await self._exec_night_start()
+        elif kind == "guard_turn":
+            await self._exec_guard_turn()
+        elif kind == "sheriff_elect":
+            await self._exec_sheriff_elect(p)
         elif kind == "wolf_meeting":
             await self._exec_wolf_meeting(p)
         elif kind == "seer_check":
@@ -159,6 +163,118 @@ class MatchRunner:
             log.warning("未知 step kind: %s（跳过）", kind)
 
     # ---- 狼人杀步骤执行（经 game.action_schema 取 schema，逻辑保持游戏无关的形态） ----
+
+    async def _exec_night_start(self) -> None:
+        """新夜：清空动作收集；向存活枪手发技能状态通知（docs/games/werewolf.md）。"""
+        self._state.extra["night"] = {}
+        st = self._state
+        for s in sorted(st.roles):
+            if st.alive[s] and st.roles[s] in ("hunter", "wolf_king"):
+                await self._emit("skill_state.notice", {"seat": s, "can_shoot": True},
+                                 vis=VisMeta(level="seat", seats=[s]))
+
+    async def _exec_guard_turn(self) -> None:
+        """守卫守护：每晚一名（禁连守由 schema candidates 过滤）。"""
+        st = self._state
+        guard = self._role_seat(st, "guard")
+        if guard is None:
+            return
+        request = self._game.action_schema(st, Step(kind="guard_turn"))
+        action, resp, _fell = await self._ask(guard, request, "guard_turn")
+        target = int(action.get("target") or 0)
+        await self._emit("night.guard_target", {"seat": guard, "target": target},
+                         vis=VisMeta(level="god"))
+        if resp.get("monologue"):
+            await self._emit("player.monologue", {"seat": guard, "text": resp["monologue"]})
+
+    async def _exec_sheriff_elect(self, p: dict[str, Any]) -> None:
+        """警长选举（standard 第 1 天，死讯公布前）：报名 → 宣言 → 投票 → PK → 授徽。"""
+        st = self._state
+        alive = sorted(s for s in st.roles if st.alive[s])
+        req_reg = self._game.action_schema(st, Step(kind="sheriff_register"))
+        regs: dict[int, bool] = {}
+
+        async def reg(s: int) -> None:
+            action, _resp, _fell = await self._ask(s, req_reg, "sheriff_register")
+            regs[s] = bool(action.get("yes", True))
+
+        await asyncio.gather(*(reg(s) for s in alive))
+        registered = [s for s in alive if regs.get(s)]
+        await self._emit("sheriff.registered", {"seats": registered})  # apply → elect_done
+        if not registered or len(registered) >= len(alive):
+            await self._emit("sheriff.badge", {"action": "destroy"})
+            return
+        if len(registered) == 1:
+            await self._emit("sheriff.badge", {"action": "transfer", "to": registered[0]})
+            return
+        # 竞选宣言（串行）
+        sp_req = self._game.action_schema(
+            st, Step(kind="serial_speech", params={"purpose": "sheriff_speech"}))
+        for s in registered:
+            if st.alive.get(s) and sp_req is not None:
+                await self._speech_round(s, sp_req, "sheriff_speech", channel=False)
+        # 首轮投票：仅未上警者
+        first = await self._exec_ballot(
+            {"voters": [s for s in alive if s not in registered],
+             "candidates": registered, "title": "警长投票", "purpose": "sheriff_vote"})
+        winner, tie = first.get("exiled"), first.get("tie")
+        if tie:
+            tied = first.get("tied") or registered
+            for s in tied:  # PK 发言
+                if st.alive.get(s) and sp_req is not None:
+                    await self._speech_round(s, sp_req, "sheriff_speech", channel=False)
+            second = await self._exec_ballot(
+                {"voters": alive, "candidates": tied, "title": "警长 PK 投票",
+                 "purpose": "sheriff_vote"})
+            if second.get("tie"):
+                await self._emit("sheriff.badge", {"action": "destroy"})
+                return
+            winner = second.get("exiled")
+        if winner:
+            await self._emit("sheriff.badge", {"action": "transfer", "to": winner})
+        else:
+            await self._emit("sheriff.badge", {"action": "destroy"})
+
+    async def _resolve_chain(self, causes: dict[int, str]) -> None:
+        """死亡结算链：开枪（knife/exile 非毒死）→ 警徽移交。被枪杀者不连锁。"""
+        st = self._state
+        for seat in sorted(causes):
+            if seat not in st.roles:
+                continue
+            cause = causes[seat]
+            role = st.roles[seat]
+            if role in ("hunter", "wolf_king") and cause in ("knife", "exile"):
+                req = self._game.action_schema(st, Step(kind="gun"))
+                if req is not None:
+                    action, resp, _fell = await self._ask(seat, req, "gun")
+                    target = int(action.get("target") or 0)
+                    await self._emit("gun.shoot",
+                                     {"seat": seat, "target": target,
+                                      "text": resp.get("speech", "")},
+                                     vis=VisMeta(level="god"))
+                    if resp.get("monologue"):
+                        await self._emit("player.monologue",
+                                         {"seat": seat, "text": resp["monologue"]})
+                    if target and st.extra.get("sheriff") == target:
+                        await self._badge_solo(target)
+            if st.extra.get("sheriff") == seat:
+                await self._badge_solo(seat)
+
+    async def _badge_solo(self, actor_seat: int) -> None:
+        """警徽移交/撕毁（临终一次）。"""
+        st = self._state
+        req = self._game.action_schema(st, Step(kind="badge"))
+        if req is None:
+            return
+        action, resp, _fell = await self._ask(actor_seat, req, "badge")
+        target = int(action.get("target") or 0)
+        if target and st.alive.get(target):
+            await self._emit("sheriff.badge", {"action": "transfer", "to": target})
+        else:
+            await self._emit("sheriff.badge", {"action": "destroy"})
+        if resp.get("monologue"):
+            await self._emit("player.monologue",
+                             {"seat": actor_seat, "text": resp["monologue"]})
 
     async def _exec_wolf_meeting(self, p: dict[str, Any]) -> None:
         state = self._state
@@ -220,11 +336,11 @@ class MatchRunner:
         action, resp, _fell = await self._ask(witch, request, "witch_turn")
         act = str(action.get("type", "pass"))
         target = int(action.get("target") or 0)
-        if act not in ("save", "poison") or target == 0:
+        if act not in ("save", "poison"):
             act, target = "pass", 0
+        if act == "poison" and (target == 0 or state.extra["used_poison"]):
+            act, target = "pass", 0  # save 的 target 本就为 0（救刀口），不算非法
         if act == "save" and state.extra["used_save"]:
-            act, target = "pass", 0
-        if act == "poison" and state.extra["used_poison"]:
             act, target = "pass", 0
         await self._emit("night.witch_action",
                          {"seat": witch, "act": act, "target": target},
@@ -237,6 +353,9 @@ class MatchRunner:
         from app.games.werewolf import rules as wr
         res = wr.resolve_night(night)
         await self._emit("night.resolved", {"day": self._state.day, **res})
+        causes = {int(k): v for k, v in (res.get("deaths") or {}).items()}
+        if causes:
+            await self._resolve_chain(causes)
 
     def _role_seat(self, state: GameState, role: str) -> int | None:
         for s in sorted(state.roles):
@@ -245,7 +364,7 @@ class MatchRunner:
         return None
 
     async def _exec_exile_resolve(self, p: dict[str, Any]) -> None:
-        """放逐结算：取最新 vote.resolved 的出局者，发遗言。"""
+        """放逐结算：遗言 → 开枪/移交链。"""
         exile = getattr(self, "_last_exile", None)
         if exile and self._state.alive.get(exile) is False:
             request = self._game.action_schema(self._state, Step(kind="last_words"))
@@ -254,6 +373,7 @@ class MatchRunner:
                 await self._emit("player.last_words", {"seat": exile, "text": resp.get("speech", "")})
                 if resp.get("monologue"):
                     await self._emit("player.monologue", {"seat": exile, "text": resp["monologue"]})
+            await self._resolve_chain({int(exile): "exile"})
 
     async def _speech_round(self, seat: int, request: ActionRequest, purpose: str,
                             channel: bool) -> None:
@@ -276,11 +396,12 @@ class MatchRunner:
                 continue
             await self._speech_round(speaker, request, p.get("purpose", "speech"), channel=False)
 
-    async def _exec_ballot(self, p: dict[str, Any]) -> None:
+    async def _exec_ballot(self, p: dict[str, Any]) -> dict[str, Any]:
+        """并行收集投票（防跟票）。返回 tally（含 tied 平票席位）。"""
         voters = [v for v in p["voters"] if self._state.alive.get(v)]
         request = self._game.action_schema(self._state, Step(kind="ballot", params=p))
         if request is None:
-            return
+            return {"exiled": None, "tie": True, "tied": []}
         votes: dict[int, int] = {}
 
         async def collect(v: int) -> None:
@@ -291,9 +412,23 @@ class MatchRunner:
 
         await asyncio.gather(*(collect(v) for v in voters))  # 并行收集防跟票
         from app.games.werewolf import rules as wr
-        tally = wr.tally_votes(votes, sheriff=p.get("sheriff"))
-        await self._emit("vote.resolved", {"votes": votes, **tally})
-        self._last_exile = tally.get("exiled")
+        sheriff = p.get("sheriff")
+        tally = wr.tally_votes(votes, sheriff=sheriff)
+        # 平票席位（最高票并列，警长 2 票权重）
+        weights: dict[int, int] = {}
+        for v, t in votes.items():
+            if not t:
+                continue
+            w = 2 if (sheriff is not None and v == sheriff) else 1
+            weights[t] = weights.get(t, 0) + w
+        top = max(weights.values()) if weights else 0
+        tied = sorted(t for t, c in weights.items() if c == top)
+        title = p.get("title", "放逐投票")
+        await self._emit("vote.resolved",
+                         {"votes": votes, "title": title, "tied": tied, **tally})
+        if title.startswith("放逐"):
+            self._last_exile = tally.get("exiled")
+        return {**tally, "tied": tied}
 
     async def _exec_solo_action(self, p: dict[str, Any]) -> None:
         actor = p["actor"]

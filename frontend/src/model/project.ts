@@ -143,7 +143,36 @@ export function applyEvent(vm: MatchVM, ev: GameEvent, godView: boolean): MatchV
       } else {
         next.feed.push({ kind: 'system', text: '🕊️ 平票 —— 平安日，无人出局' })
       }
-      next.vote = { title: '放逐投票', tally, exile, tie: Boolean(p.tie) }
+      next.vote = { title: String(p.title ?? '放逐投票'), tally, exile, tie: Boolean(p.tie) }
+      break
+    }
+    case 'gun.shoot': {
+      const tgt = Number(p.target) || 0
+      if (tgt) {
+        const s = next.seats.find(x => x.seat === tgt)
+        if (s) s.alive = false
+        next.feed.push({ kind: 'system', text: `🔫 ${p.seat}号开枪带走了 ${tgt}号！` })
+      } else {
+        next.feed.push({ kind: 'system', text: `🔫 ${p.seat}号选择放弃开枪` })
+      }
+      break
+    }
+    case 'sheriff.registered':
+      if ((p.seats ?? []).length) {
+        next.sheriff = null
+        next.feed.push({ kind: 'system', text: `🏅 上警：${(p.seats as number[]).join('、')}号` })
+      } else {
+        next.feed.push({ kind: 'system', text: '🏅 无人上警 —— 警徽丢失' })
+      }
+      break
+    case 'sheriff.badge': {
+      if (p.action === 'transfer' && p.to) {
+        next.sheriff = Number(p.to)
+        next.feed.push({ kind: 'system', text: `🏅 ${p.to}号当选警长` })
+      } else {
+        next.sheriff = null
+        next.feed.push({ kind: 'system', text: '🏅 警徽被撕毁' })
+      }
       break
     }
     case 'match.finished': {

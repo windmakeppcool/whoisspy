@@ -104,7 +104,13 @@ def create_app(db_path: str | None = None) -> FastAPI:
                 await usage_repo.record_call(match_id=match_id, **{
                     k: v for k, v in kw.items() if k != "match_id"})
 
-        gw = OpenAICompatGateway(usage_sink=_Sink())
+        # 全部座位 model=mock → 启发式假 LLM（零网络、有内容）；否则真实 OpenAI 兼容网关
+        if all(s["model"] == "mock" for s in seats):
+            from app.llm.gateway import MockLLM
+
+            gw = MockLLM(script=[], rng_seed=seed, usage_sink=_Sink())
+        else:
+            gw = OpenAICompatGateway(usage_sink=_Sink())
         runner = MatchRunner(match_id=match_id, game=game, spec=spec,
                              repo=match_repo, gateway=gw, seed=seed,
                              seat_meta=seat_meta, stop_flag=stop)

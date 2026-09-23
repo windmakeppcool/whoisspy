@@ -29,15 +29,20 @@ class UsageSink(Protocol):
 
 
 class MockLLM:
-    """剧本驱动的假 LLM：按 script 依次返回；支持故障注入（bad_json/timeout）。"""
+    """剧本驱动的假 LLM：按 script 依次返回；耗尽后回落启发式对话（保证 demo 局有内容）。
+
+    支持故障注入（bad_json/timeout）；usage_sink 可选（估算 token 入账）。
+    """
 
     def __init__(self, script: list[dict[str, Any]], fail_rate: float = 0.0,
-                 rng_seed: int = 0, fail_mode: str = "bad_json"):
+                 rng_seed: int = 0, fail_mode: str = "bad_json",
+                 usage_sink: UsageSink | None = None):
         self._script = [json.dumps(s, ensure_ascii=False) if isinstance(s, dict) else s
                         for s in script]
         self._fail_rate = fail_rate
         self._rng = random.Random(rng_seed)
         self._fail_mode = fail_mode
+        self._sink = usage_sink
         self.calls: list[dict[str, Any]] = []
 
     async def complete(self, *, base_url: str, api_key: str, model: str,
@@ -49,7 +54,7 @@ class MockLLM:
             return "这不是JSON{{{"
         if self._script:
             return self._script.pop(0)
-        return json.dumps({"speech": "", "monologue": "", "action": None}, ensure_ascii=False)
+        return json.dumps(_heuristic_reply(messages, purpose, self._rng), ensure_ascii=False)
 
     async def ask_json(self, *, base_url: str, api_key: str, model: str,
                        messages: list[dict[str, str]], purpose: str,
@@ -57,7 +62,67 @@ class MockLLM:
         """与 OpenAICompatGateway 同接口：Mock 不做重试/修复，失败如实抛出。"""
         raw = await self.complete(base_url=base_url, api_key=api_key, model=model,
                                   messages=messages, purpose=purpose)
+        if self._sink is not None:
+            pt = sum(len(m.get("content", "")) for m in messages) // 4
+            await self._sink.record_call(
+                match_id=match_id, purpose=purpose, model=model,
+                prompt_tokens=pt, completion_tokens=len(raw) // 4,
+                cost_micros=0, latency_ms=1, status="ok")
         return parse_agent_response(raw)
+
+
+def _heuristic_reply(messages: list[dict[str, str]], purpose: str,
+                     rng: random.Random) -> dict[str, Any]:
+    """从 prompt 反解出座位/动作类型/候选，产出确定性、有内容的回复。
+
+    选目标策略：候选中非自己的最小座位（保证全桌一致 → 必然出人命/必然出警）。
+    """
+    import re
+
+    content = messages[0].get("content", "") if messages else ""
+    m_seat = re.search(r"你是 (\d+) 号座位", content)
+    seat = int(m_seat.group(1)) if m_seat else 1
+    m_type = re.search(r'"type": "([a-z_]+)"', content)
+    atype = m_type.group(1) if m_type else "speech"
+    m_cand = re.search(r"合法目标座位：\[([\d, ]+)\]", content)
+    cands = [int(x) for x in m_cand.group(1).split(",")] if m_cand else []
+    others = [c for c in sorted(set(cands)) if c != seat]
+    target = others[0] if others else 0
+
+    speech_templates = {
+        "vote": f"{seat}号：我这票先给 {target} 号，他的发言漏洞最多，欢迎来验。",
+        "kill": f"狼队友们，我倾向刀 {target} 号。",
+        "check": f"今晚验 {target} 号。",
+        "speech": f"我是 {seat} 号。目前信息有限，我先表个水：重点听 {target} 号和后面的人发言，谁急谁可疑。",
+        "last_words": f"我是好人走的，{seat} 号平民一个，别被带节奏，剩下的人好好盘。",
+        "register": f"{seat} 号上警：我来带队，这轮听我归。",
+        "sheriff_speech": f"{seat} 号竞选宣言：我逻辑清楚敢归票，投我警徽稳。",
+    }
+    speech = speech_templates.get(atype, f"{seat}号发言。")
+    if purpose == "channel":
+        speech = f"狼队友们，我倾向刀 {target} 号。"
+    if purpose == "sheriff_speech":
+        speech = speech_templates["sheriff_speech"]
+
+    action: dict[str, Any] | None
+    if atype == "speech" and not cands:
+        action = None
+    elif atype == "register":
+        action = {"type": "register", "yes": seat % 2 == 1}
+    elif atype == "save":
+        action = {"type": "save", "target": 0}
+    elif atype == "badge":
+        action = {"type": "badge", "target": target}
+    elif cands:
+        action = {"type": atype, "target": target}
+    else:
+        action = {"type": atype, "target": 0}
+
+    return {
+        "speech": speech,
+        "monologue": f"（内心）候选 {others or cands or '无'}，选 {target}。",
+        "action": action,
+    }
 
 
 class OpenAICompatGateway:

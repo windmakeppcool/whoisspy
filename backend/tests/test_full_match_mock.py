@@ -83,3 +83,31 @@ class TestWerewolfFullMatch:
         wolf_count = sum(1 for s in got["seats"] if s["role"] == "wolf")
         seer_count = sum(1 for s in got["seats"] if s["role"] == "seer")
         assert (wolf_count, seer_count) == (2, 1)
+
+
+class TestStandard12Mechanics:
+    """standard-12 机制事件齐全（守卫/警长/技能通知/必然死人）。"""
+
+    async def test_standard整局_机制事件齐全(self, repo):
+        game, spec = resolve_board({"id": "p12-standard"})
+        m = await repo.create_match(game_type="werewolf", ruleset="standard-12",
+                                    board={"id": "p12-standard"}, rng_seed=11, seats=[
+            {"seat": i, "name": f"p{i}", "persona_id": "calm", "base_url": "",
+             "api_key_env": "", "model": "mock", "role": ""} for i in range(1, 13)])
+        roles = {a.seat: a.role for a in game.deal(spec, __import__("random").Random(11))}
+        llm = MockLLM(script=[], fail_rate=0.0)
+        runner = MatchRunner(match_id=m["id"], game=game, spec=spec, repo=repo,
+                             gateway=llm, seed=11, seat_meta=_seat_meta(roles))
+        result = await runner.run()
+        assert result is not None
+        events = await repo.list_events(m["id"], after_seq=0, view="god")
+        types = {e.type for e in events}
+        assert "night.guard_target" in types          # 守卫每夜行动
+        assert "sheriff.registered" in types          # 上警报名
+        assert "sheriff.badge" in types               # 警徽产生
+        assert "skill_state.notice" in types          # 枪手技能通知
+        # 启发式 mock 下必然出现出局与夜死（对局有内容）
+        exiles = [e for e in events if e.type == "vote.resolved" and e.payload.get("exiled")]
+        deaths = [e for e in events if e.type == "night.resolved"
+                  and e.payload.get("deaths")]
+        assert exiles and deaths

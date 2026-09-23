@@ -39,12 +39,21 @@ class TestMockLLM:
         assert json.loads(r1)["speech"] == "a"
         assert json.loads(r2)["speech"] == "b"
 
-    async def test_剧本耗尽后沉默兜底(self):
+    async def test_剧本耗尽走启发式而非沉默(self):
+        """剧本耗尽后回落到启发式：产出确定性对话/动作，保证 demo 局有内容。"""
         llm = MockLLM(script=[{"speech": "a"}])
         r1 = await llm.complete(base_url="", api_key="", model="", messages=[], purpose="x")
-        r2 = await llm.complete(base_url="", api_key="", model="", messages=[], purpose="x")
         assert json.loads(r1)["speech"] == "a"
-        assert json.loads(r2)["speech"] == ""  # 剧本耗尽 → 沉默兜底
+        r2 = await llm.complete(
+            base_url="", api_key="", model="",
+            messages=[{"role": "user", "content":
+                       '你是 3 号座位。\n## 当前任务\n投票。合法目标座位：[1, 2, 4]。'
+                       '{"speech": "...", "action": {"type": "vote", ...}}'}],
+            purpose="vote")
+        obj = json.loads(r2)
+        assert obj["speech"]  # 非空发言
+        assert obj["action"] and obj["action"]["type"] == "vote"
+        assert obj["action"]["target"] in (1, 2, 4)
 
     async def test_故障注入坏json(self):
         llm = MockLLM(script=[{"speech": "x"}], fail_rate=1.0, rng_seed=1, fail_mode="bad_json")
