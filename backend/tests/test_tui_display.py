@@ -44,6 +44,28 @@ def test_渲染对话流_系统消息():
     assert "狼队选择击杀 3号" in output
 
 
+def test_渲染对话流_投票分支():
+    """验证 vote 类型走 [投票] 分支（此前零覆盖）。"""
+    vm = MatchVM(feed=[
+        {"type": "vote", "speaker": 1, "text": "1号 投票给 2号"},
+        {"type": "vote", "speaker": 3, "text": "3号 弃票"},
+    ])
+    output = render_feed(vm)
+    assert "[投票]" in output
+    assert "1号 投票给 2号" in output
+    assert "3号 弃票" in output
+
+
+def test_渲染对话流_无发言人else分支():
+    """验证非 system/vote 且无 speaker 时走裸文本 else 分支（此前零覆盖）。"""
+    vm = MatchVM(feed=[
+        {"type": "notice", "text": "无座位的提示消息"},
+    ])
+    output = render_feed(vm)
+    assert "无座位的提示消息" in output
+    assert "号:" not in output  # 不应渲染成 "{speaker}号: {text}"
+
+
 def test_渲染对话流_空():
     """验证空对话流。"""
     vm = MatchVM(feed=[])
