@@ -35,7 +35,7 @@ const rows = computed(() => {
       </li>
     </ul>
     <p v-if="vote.exile === undefined" class="result peaceful">🕊️ 平票 —— 平安日，无人出局</p>
-    <p v-else class="result">⚖️ {{ vote.exile }}号「{{ seats.find((s) => s.id === vote.exile)?.name }}」被放逐出局</p>
+    <p v-else class="result">⚖️ {{ vote?.exile }}号「{{ seats.find((s) => s.id === vote?.exile)?.name }}」被放逐出局</p>
   </section>
 </template>
 
