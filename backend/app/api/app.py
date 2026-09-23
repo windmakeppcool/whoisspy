@@ -164,16 +164,23 @@ def create_app(db_path: str | None = None) -> FastAPI:
             while True:
                 events = await match_repo.list_events(match_id, after_seq=seq, view=view)
                 for ev in events:
-                    yield _sse_frame(ev["seq"], _event_dict(ev))
-                    seq = ev["seq"]
+                    # Event 是数据类：用属性访问，不能用下标
+                    yield _sse_frame(ev.seq, _event_dict(ev))
+                    seq = ev.seq
                     idle = 0.0
                 if idle > 0:
                     yield ": keepalive\n\n"
                 await asyncio.sleep(0.4)
                 idle += 0.4
-                # 对局结束且已追平 → 收流
+                # 对局结束 → 补拉 sleep 窗口内的剩余事件后再收流
+                # （status 翻转前事件已全部落库，补拉结果即为全集，避免丢事件）
                 cur = await match_repo.get_match(match_id)
-                if cur and cur["status"] in ("finished", "stopped") and not events:
+                if cur and cur["status"] in ("finished", "stopped"):
+                    tail = await match_repo.list_events(
+                        match_id, after_seq=seq, view=view)
+                    for ev in tail:
+                        yield _sse_frame(ev.seq, _event_dict(ev))
+                        seq = ev.seq
                     yield "event: match_finished\ndata: {}\n\n"
                     break
 
