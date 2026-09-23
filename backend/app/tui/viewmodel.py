@@ -60,7 +60,7 @@ def apply_event(vm: MatchVM, ev: Event, god_view: bool) -> MatchVM:
     # 夜晚操作
     elif ev.type == "night.kill_target":
         target = p.get("target", 0)
-        if target == 0:
+        if not target:  # 引擎空刀可能是 0 或 null（decided_by=empty），都显示为空刀
             next_vm.feed.append({"type": "system", "text": "狼队空刀"})
         else:
             next_vm.feed.append({"type": "system", "text": f"狼队选择击杀 {target}号"})
