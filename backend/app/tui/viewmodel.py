@@ -57,6 +57,11 @@ def apply_event(vm: MatchVM, ev: Event, god_view: bool) -> MatchVM:
         finished=vm.finished, winner=vm.winner,
     )
 
+    # 沉浸视角：仅 public 事件参与投影（与 app.core.filtered_view 语义一致）。
+    # 例外 role.dealt：座次表状态仍维护（不进 feed），角色由 render_seats 按视角隐藏。
+    if not god_view and ev.vis.level != "public" and ev.type != "role.dealt":
+        return next_vm
+
     # 阶段事件
     if ev.type == "phase.started":
         phase = str(p.get("phase", ""))

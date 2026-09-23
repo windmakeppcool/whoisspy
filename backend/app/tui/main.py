@@ -6,7 +6,7 @@ import asyncio
 import time
 from typing import Any
 
-from app.core import Event
+from app.core import Event, VisMeta
 from app.tui.sse_client import SSEClient
 from app.tui.viewmodel import MatchVM, apply_event
 from app.tui.display import render_header, render_feed, render_seats
@@ -38,12 +38,21 @@ class Debouncer:
 
 
 def _dict_to_event(raw: dict[str, Any]) -> Event:
-    """SSE 原始 dict → Event（SSE 客户端产出 dict，apply_event 需要 Event）。"""
+    """SSE 原始 dict → Event（SSE 客户端产出 dict，apply_event 需要 Event）。
+
+    保留 vis 字段：沉浸视角按 vis.level 过滤的依据（缺省 public 兼容旧帧）。
+    """
+    vis_raw = raw.get("vis") or {}
+    vis = VisMeta(
+        level=vis_raw.get("level", "public"),
+        seats=list(vis_raw.get("seats") or []),
+    )
     return Event(
         type=str(raw.get("type", "")),
         payload=raw.get("payload") or {},
         day_index=int(raw.get("day_index", 0)),
         phase=str(raw.get("phase", "")),
+        vis=vis,
         seq=int(raw.get("seq", 0)),
     )
 

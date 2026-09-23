@@ -234,7 +234,8 @@ def create_app(db_path: str | None = None) -> FastAPI:
 
 def _event_dict(e) -> dict[str, Any]:
     return {"seq": e.seq, "type": e.type, "day_index": e.day_index,
-            "phase": e.phase, "payload": e.payload}
+            "phase": e.phase, "payload": e.payload,
+            "vis": {"level": e.vis.level, "seats": e.vis.seats}}
 
 
 def _sse_frame(seq: int, ev: dict[str, Any]) -> str:

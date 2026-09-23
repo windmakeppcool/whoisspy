@@ -154,3 +154,48 @@ def test_放逐平票不改存活():
     vm = apply_event(vm, ev, god_view=True)
 
     assert vm.seats[0]["alive"] is True
+
+
+def test_沉浸视角过滤上帝级事件():
+    """沉浸视角不得出现 night.kill_target（god 级）——filtered_view 语义。"""
+    vm = MatchVM()
+    ev = make_event("night.kill_target", {"target": 3})
+    ev.vis = VisMeta(level="god")
+    vm = apply_event(vm, ev, god_view=False)
+
+    assert vm.feed == []
+
+
+def test_沉浸视角过滤座位级频道消息():
+    """沉浸视角不得出现 channel.message（seat 级）。"""
+    vm = MatchVM()
+    ev = make_event("channel.message", {"seat": 1, "text": "刀3号"})
+    ev.vis = VisMeta(level="seat", seats=[1, 2])
+    vm = apply_event(vm, ev, god_view=False)
+
+    assert vm.feed == []
+
+
+def test_上帝视角保留上帝级与座位级事件():
+    """上帝视角全量可见。"""
+    vm = MatchVM()
+    ev_kill = make_event("night.kill_target", {"target": 3})
+    ev_kill.vis = VisMeta(level="god")
+    vm = apply_event(vm, ev_kill, god_view=True)
+
+    ev_chan = make_event("channel.message", {"seat": 1, "text": "刀3号"})
+    ev_chan.vis = VisMeta(level="seat", seats=[1, 2])
+    vm = apply_event(vm, ev_chan, god_view=True)
+
+    assert len(vm.feed) == 2
+
+
+def test_沉浸视角公开事件正常投影():
+    """公开事件（发言/阶段）沉浸视角不受过滤影响。"""
+    vm = MatchVM()
+    ev = make_event("player.speech", {"seat": 2, "text": "我是好人"})
+    ev.vis = VisMeta(level="public")
+    vm = apply_event(vm, ev, god_view=False)
+
+    assert len(vm.feed) == 1
+    assert vm.feed[0]["text"] == "我是好人"

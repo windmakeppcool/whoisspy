@@ -3,7 +3,7 @@
 import asyncio
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from app.tui.main import run_tui
+from app.tui.main import run_tui, _dict_to_event
 
 
 @pytest.mark.asyncio
@@ -37,3 +37,26 @@ async def test_事件防抖():
     # 等待 100ms 后
     await asyncio.sleep(0.11)
     assert debouncer.should_render() == True
+
+
+def test_dict_to_event保留vis可见性():
+    """验证 _dict_to_event 保留 vis 字段（沉浸过滤的依据）。"""
+    raw = {"seq": 1, "type": "night.kill_target", "day_index": 1, "phase": "night",
+           "payload": {"target": 3}, "vis": {"level": "god", "seats": []}}
+    ev = _dict_to_event(raw)
+    assert ev.vis.level == "god"
+    assert ev.vis.seats == []
+
+    raw_seat = {**raw, "vis": {"level": "seat", "seats": [1, 2]}}
+    ev_seat = _dict_to_event(raw_seat)
+    assert ev_seat.vis.level == "seat"
+    assert ev_seat.vis.seats == [1, 2]
+
+
+def test_dict_to_event缺省vis为public():
+    """验证缺 vis 字段时默认 public（向后兼容）。"""
+    raw = {"seq": 1, "type": "player.speech", "day_index": 1, "phase": "",
+           "payload": {"seat": 1, "text": "hi"}}
+    ev = _dict_to_event(raw)
+    assert ev.vis.level == "public"
+    assert ev.vis.seats == []

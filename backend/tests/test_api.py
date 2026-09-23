@@ -78,6 +78,20 @@ class TestMatchApi:
                                      params={"after_seq": cut, "view": "god"})).json()
             assert all(ev["seq"] > cut for ev in rest)
 
+    async def test_事件出站携带vis字段(self, client):
+        """出站事件需带 vis——TUI 客户端沉浸过滤的依据。"""
+        m = await _create(client)
+        await asyncio.sleep(0.3)
+        god = (await client.get(f"/api/matches/{m['id']}/events",
+                                params={"after_seq": 0, "view": "god"})).json()
+        assert god
+        for ev in god:
+            assert "vis" in ev, f"事件 {ev['type']} 缺 vis 字段"
+            assert ev["vis"]["level"] in ("public", "seat", "god")
+        dealt = [ev for ev in god if ev["type"] == "role.dealt"]
+        if dealt:
+            assert dealt[0]["vis"]["level"] == "seat"
+
     async def test_用量端点(self, client):
         m = await _create(client)
         resp = await client.get(f"/api/matches/{m['id']}/usage")
