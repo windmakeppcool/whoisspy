@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>whoisspy 观赛页 · 设计展示</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Noto+Sans+SC:wght@400;500;700;900&family=ZCOOL+KuaiLe&display=swap" rel="stylesheet" />
+<style>
+/* ===== tokens（与 frontend/src/styles/tokens.css 一致） ===== */
+:root {
+  --ink: #2d2a3e;
+  --paper: #fff8e7;
+  --paper-dim: #f1e6c8;
+  --sky-day-top: #6fc2f0;
+  --sky-day-bottom: #d6f0fb;
+  --sky-night-top: #1e2050;
+  --sky-night-bottom: #4a4f8f;
+  --sun: #ffd75e;
+  --moon: #f5e960;
+  --grass-day: #8ccb6e;
+  --grass-night: #3a4a52;
+  --village-day: #79b364;
+  --village-night: #262c4e;
+  --wolf: #e4577e;
+  --good: #f2a93b;
+  --seer: #5b8def;
+  --witch: #59b57c;
+  --sheriff: #f5c542;
+  --dead: #9b97a8;
+  --border-w: 3px;
+  --shadow-pop: 0 4px 0 var(--ink);
+  --shadow-pop-sm: 0 3px 0 var(--ink);
+  --radius: 14px;
+  --radius-lg: 22px;
+  --font-display: 'ZCOOL KuaiLe', 'Baloo 2', 'Noto Sans SC', sans-serif;
+  --font-body: 'Noto Sans SC', sans-serif;
+  --font-num: 'Baloo 2', 'ZCOOL KuaiLe', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: var(--font-body);
+  color: var(--ink);
+  background: var(--sky-day-bottom);
+  overflow: hidden;
+}
+button { font-family: inherit; color: inherit; border: none; background: none; cursor: pointer; }
+:focus-visible { outline: 3px solid var(--sheriff); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
+/* ===== 天空场景（签名元素） ===== */
+.sky { position: fixed; inset: 0; z-index: -1; overflow: hidden; transition: background 2.4s ease; }
+.sky.day { background: linear-gradient(180deg, var(--sky-day-top) 0%, var(--sky-day-bottom) 78%); }
+.sky.night { background: linear-gradient(180deg, var(--sky-night-top) 0%, var(--sky-night-bottom) 78%); }
+.celestial { position: absolute; width: 92px; height: 92px; border-radius: 50%; transition: all 2.4s ease; }
+.sky.day .celestial { background: var(--sun); top: 13%; right: 13%;
+  box-shadow: 0 0 0 10px rgba(255,215,94,.35), 0 0 0 22px rgba(255,215,94,.14); }
+.sky.night .celestial { background: var(--moon); top: 10%; right: 15%; overflow: hidden;
+  box-shadow: 0 0 0 8px rgba(245,233,96,.18); }
+.sky.night .celestial::after { content: ''; position: absolute; left: -34%; top: -14%;
+  width: 100%; height: 100%; border-radius: 50%; background: var(--sky-night-top); }
+.stars { position: absolute; inset: 0; opacity: 0; transition: opacity 2.4s ease; }
+.sky.night .stars { opacity: 1; }
+.star { position: absolute; border-radius: 50%; background: #fdf6c9; animation: twinkle 3.2s ease-in-out infinite; }
+.star.bright { box-shadow: 0 0 6px 1px rgba(253,246,201,.8); }
+@keyframes twinkle { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
+.village { position: absolute; bottom: 0; left: 0; width: 100%; height: clamp(110px, 17vh, 190px); }
+.v-hills { fill: var(--grass-day); transition: fill 2.4s ease; }
+.sky.night .v-hills { fill: var(--grass-night); }
+.v-houses { fill: var(--village-day); transition: fill 2.4s ease; }
+.sky.night .v-houses { fill: var(--village-night); }
+.mill { animation: mill-spin 9s linear infinite; transform-origin: 0 0; }
+@keyframes mill-spin { to { transform: rotate(360deg); } }
+
+/* ===== 顶栏 ===== */
+.topbar { display: flex; align-items: center; gap: 14px; padding: 10px 18px; }
+.brand { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-size: 21px;
+  color: var(--ink); text-shadow: 0 2px 0 rgba(255,255,255,.55); }
+.logo { font-size: 24px; filter: drop-shadow(0 2px 0 var(--ink)); }
+.mode-wrap { position: relative; }
+.mode-btn, .god-btn, .play { padding: 7px 15px; font-size: 14px; font-weight: 900;
+  background: var(--paper); border: var(--border-w) solid var(--ink); border-radius: 999px;
+  box-shadow: var(--shadow-pop-sm); transition: transform .15s ease; }
+.mode-btn:hover, .god-btn:hover, .play:hover { transform: translateY(-1px); }
+.mode-btn { display: flex; align-items: center; gap: 7px; }
+.caret { font-size: 11px; transition: transform .2s ease; }
+.caret.up { transform: rotate(180deg); }
+.menu { position: absolute; top: calc(100% + 8px); left: 0; z-index: 30; min-width: 230px; list-style: none;
+  background: var(--paper); border: var(--border-w) solid var(--ink); border-radius: var(--radius);
+  box-shadow: var(--shadow-pop); padding: 6px; display: flex; flex-direction: column; gap: 3px; }
+.item { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 11px; font-size: 13.5px; font-weight: 700; border-radius: 9px; text-align: left; }
+.item:hover { background: var(--paper-dim); }
+.item.active { background: #e8f4ff; }
+.check { color: var(--seer); font-weight: 900; }
+.item.locked { opacity: .5; cursor: not-allowed; }
+.hint { font-size: 10.5px; font-weight: 500; color: #8a85a0; }
+.god-btn { margin-left: auto; font-size: 13.5px; }
+.god-btn.on { background: var(--sheriff); }
+
+/* ===== 舞台三栏 ===== */
+.stage { flex: 1; min-height: 0; display: grid;
+  grid-template-columns: minmax(170px, 230px) minmax(0, 1fr) minmax(170px, 230px);
+  gap: 16px; padding: 2px 18px 4px; max-width: 1500px; width: 100%; margin: 0 auto; }
+.page { height: 100%; display: flex; flex-direction: column; }
+.wing { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; justify-content: center;
+  scrollbar-width: none; padding: 6px 0; }
+.wing::-webkit-scrollbar { display: none; }
+.seat-col { display: flex; flex-direction: column; gap: 10px; justify-content: center; }
+.center { min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.center .theater-wrap { flex: 1; min-height: 0; }
+
+/* ===== 阶段横幅 ===== */
+.banner { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 9px 18px;
+  background: linear-gradient(180deg, #b98a5a 0%, #a4764a 100%);
+  border: var(--border-w) solid var(--ink); border-radius: var(--radius); box-shadow: var(--shadow-pop);
+  color: var(--paper); position: relative; }
+.banner::before, .banner::after { content: ''; position: absolute; top: 50%; width: 8px; height: 8px;
+  border-radius: 50%; background: var(--ink); transform: translateY(-50%); }
+.banner::before { left: 12px; } .banner::after { right: 12px; }
+.banner .icon { font-size: 22px; }
+.banner .title { font-family: var(--font-display); font-weight: 400; font-size: 19px;
+  letter-spacing: .06em; text-shadow: 0 2px 0 rgba(45,42,62,.55); }
+.day-chip { display: inline-flex; align-items: baseline; gap: 3px; padding: 2px 10px; background: var(--paper);
+  color: var(--ink); border: 2px solid var(--ink); border-radius: 999px; box-shadow: 0 2px 0 var(--ink); }
+.day-label { font-size: 11px; font-weight: 700; }
+.day-num { font-family: var(--font-num); font-size: 17px; font-weight: 800; line-height: 1; }
+
+/* ===== 座位卡 ===== */
+.seat-card { position: relative; display: flex; align-items: center; gap: 10px; padding: 9px 11px;
+  background: var(--paper); border: var(--border-w) solid var(--ink); border-radius: var(--radius);
+  box-shadow: var(--shadow-pop-sm); transition: transform .18s ease, box-shadow .18s ease; }
+.seat-card:hover { transform: translateY(-2px); }
+.seat-card.speaking { transform: translateY(-3px) scale(1.03); box-shadow: 0 6px 0 var(--ink); }
+.seat-card::before { content: ''; position: absolute; left: -3px; top: 8px; bottom: 8px; width: 6px;
+  border-radius: 4px; background: var(--paper-dim); }
+.seat-card.god.wolf::before { background: var(--wolf); }
+.seat-card.god.good::before { background: var(--good); }
+.seat-card.dead { opacity: .62; filter: grayscale(.75); }
+.seat-card.dead .name { text-decoration: line-through; }
+.avatar { position: relative; flex: none; width: 46px; height: 46px; display: grid; place-items: center;
+  background: var(--paper-dim); border: 2.5px solid var(--ink); border-radius: 50%; font-size: 26px; }
+.grave { position: absolute; inset: -6px; display: grid; place-items: center; font-size: 30px;
+  font-weight: 900; color: var(--wolf); text-shadow: 0 0 4px var(--paper); transform: rotate(-8deg); }
+.meta { min-width: 0; flex: 1; }
+.no { font-family: var(--font-num); font-weight: 800; font-size: 12px; letter-spacing: .04em;
+  color: #8a85a0; line-height: 1.15; }
+.name { font-weight: 900; font-size: 14.5px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.model { font-size: 11px; font-weight: 500; color: #8a85a0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.role-chip { position: absolute; right: -8px; top: -10px; padding: 2px 8px; font-size: 11px; font-weight: 900;
+  color: #fff; border: 2px solid var(--ink); border-radius: 999px; box-shadow: 0 2px 0 var(--ink); transform: rotate(4deg); }
+.role-chip.wolf-c { background: var(--wolf); }
+.role-chip.good-c { background: var(--good); }
+.role-chip.seer-c { background: var(--seer); }
+.role-chip.witch-c { background: var(--witch); }
+.badge-sheriff { position: absolute; left: -12px; top: -14px; font-size: 24px; transform: rotate(-14deg);
+  filter: drop-shadow(0 2px 0 var(--ink)); z-index: 1; }
+.speak-dot { position: absolute; right: 10px; bottom: 8px; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--seer); border: 2px solid var(--ink); animation: pop .9s ease infinite; }
+@keyframes pop { 0%,100% { transform: scale(1); } 50% { transform: scale(1.45); } }
+
+/* ===== 对话剧场 ===== */
+.theater { height: 100%; display: flex; flex-direction: column; border: var(--border-w) solid var(--ink);
+  border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow-pop); overflow: hidden; }
+.feed { flex: 1; overflow-y: auto; padding: 16px 18px 20px; display: flex; flex-direction: column; gap: 12px;
+  scrollbar-width: thin; scrollbar-color: var(--paper-dim) transparent; }
+.narration { align-self: center; max-width: 92%; text-align: center; font-size: 13.5px; font-weight: 700;
+  color: #6f6a85; padding: 6px 14px; background: var(--paper-dim); border-radius: 999px; border: 2px dashed #c9bd9a; }
+.bubble-row, .channel-row { display: flex; gap: 9px; align-items: flex-end; }
+.bubble-row.right { flex-direction: row-reverse; }
+.mini-avatar { flex: none; width: 38px; height: 38px; display: grid; place-items: center; font-size: 22px;
+  background: var(--paper-dim); border: 2.5px solid var(--ink); border-radius: 50%; }
+.bubble { max-width: 78%; background: #fff; border: 2.5px solid var(--ink); border-radius: 4px 16px 16px 16px;
+  padding: 9px 13px 10px; box-shadow: 0 3px 0 var(--ink); }
+.bubble-row.right .bubble { border-radius: 16px 4px 16px 16px; }
+.who { font-size: 12px; font-weight: 900; color: #8a85a0; margin-bottom: 3px; display: flex; gap: 6px; align-items: center; }
+.bubble-row.right .who { justify-content: flex-end; }
+.tag { font-size: 10px; font-weight: 900; color: #fff; padding: 1px 7px; border-radius: 999px; border: 1.5px solid var(--ink); }
+.last-tag { background: var(--dead); }
+.sheriff-tag { background: var(--sheriff); }
+.wolf-tag { background: var(--wolf); }
+.text { font-size: 14px; line-height: 1.62; white-space: pre-wrap; word-break: break-word; }
+.mono { margin-top: 7px; padding: 7px 9px; background: #f3f0fa; border: 1.5px dashed #9a92c4; border-radius: 9px;
+  font-size: 12px; line-height: 1.55; color: #55507a; display: flex; gap: 6px; align-items: baseline; }
+.mono-tag { flex: none; font-size: 10px; font-weight: 900; color: #55507a; border: 1.5px solid #9a92c4;
+  border-radius: 6px; padding: 0 5px; }
+.channel-row { justify-content: center; }
+.channel-bubble { max-width: 86%; background: #ffe9ef; border: 2.5px solid var(--wolf); border-radius: 14px;
+  padding: 9px 13px 10px; box-shadow: 0 3px 0 var(--wolf); }
+.channel-bubble .who { color: var(--wolf); }
+
+/* ===== 投票抽屉 ===== */
+.drawer { border: var(--border-w) solid var(--ink); border-radius: var(--radius); background: var(--paper);
+  box-shadow: var(--shadow-pop-sm); padding: 12px 16px 13px; display: flex; flex-direction: column; gap: 9px; }
+.drawer .title { font-family: var(--font-display); font-weight: 400; font-size: 15.5px; letter-spacing: .05em; }
+.bars { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+.bar-row { display: grid; grid-template-columns: 110px 1fr 26px auto; align-items: center; gap: 8px; font-size: 12.5px; }
+.bar-row .who { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.track { height: 14px; background: var(--paper-dim); border: 2px solid var(--ink); border-radius: 999px; overflow: hidden; }
+.fill { display: block; height: 100%; background: var(--good); border-right: 2px solid var(--ink); transition: width .5s ease; }
+.num { font-family: var(--font-num); font-weight: 800; text-align: center; }
+.out { font-size: 10.5px; font-weight: 900; color: #fff; background: var(--wolf);
+  border: 1.5px solid var(--ink); border-radius: 999px; padding: 0 7px; }
+.result { font-size: 13px; font-weight: 900; color: var(--wolf); }
+.result.peaceful { color: #5a8a4a; }
+
+/* ===== 导演条 ===== */
+.director { display: flex; align-items: center; gap: 9px; padding: 8px 18px 14px; }
+.nav { flex: none; width: 34px; height: 34px; font-size: 19px; font-weight: 900; background: var(--paper);
+  border: var(--border-w) solid var(--ink); border-radius: 50%; box-shadow: var(--shadow-pop-sm); }
+.nav:hover { background: var(--paper-dim); }
+.chapters { flex: 1; display: flex; gap: 6px; overflow-x: auto; padding: 3px; scrollbar-width: none; }
+.chapter { flex: none; padding: 6px 12px; font-size: 12px; font-weight: 700; white-space: nowrap;
+  background: var(--paper); border: 2px solid var(--ink); border-radius: 999px; color: #7d7894; }
+.chapter.done { background: var(--paper-dim); color: var(--ink); }
+.chapter.now { background: var(--ink); color: var(--paper); }
+.play.on { background: var(--witch); color: #fff; }
+
+@media (max-width: 900px) {
+  .stage { grid-template-columns: 1fr; }
+  .wing { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="sky day" id="sky">
+  <div class="celestial"></div>
+  <div class="stars" id="stars"></div>
+  <svg class="village" viewBox="0 0 1200 190" preserveAspectRatio="none">
+    <path class="v-hills" d="M0,190 L0,120 Q150,60 300,110 T600,100 T900,115 T1200,90 L1200,190 Z" />
+    <g class="v-houses">
+      <path d="M80,190 L80,140 L105,118 L130,140 L130,190 Z" />
+      <path d="M170,190 L170,150 L190,132 L210,150 L210,190 Z" />
+      <rect x="258" y="128" width="26" height="62" /><path d="M252,130 L271,112 L290,130 Z" />
+      <path d="M560,190 L560,146 L585,124 L610,146 L610,190 Z" />
+      <path d="M650,190 L650,158 L668,142 L686,158 L686,190 Z" />
+      <rect x="742" y="140" width="24" height="50" /><path d="M736,142 L754,124 L772,142 Z" />
+      <path d="M1030,190 L1030,142 L1056,120 L1082,142 L1082,190 Z" />
+      <path d="M1120,190 L1120,156 L1138,140 L1156,156 L1156,190 Z" />
+      <rect x="880" y="126" width="14" height="64" />
+      <g class="mill" transform="translate(887,122)">
+        <path d="M0,0 L26,7 L0,14 Z" /><path d="M0,0 L-26,-7 L0,-14 Z" />
+        <path d="M0,0 L-7,-26 L-14,0 Z" /><path d="M0,0 L7,26 L14,0 Z" />
+      </g>
+    </g>
+  </svg>
+</div>
+
+<div class="page">
+  <nav class="topbar">
+    <p class="brand"><span class="logo">🐺</span><span class="word">whoisspy</span></p>
+    <div class="mode-wrap">
+      <button class="mode-btn" id="modeBtn" aria-expanded="false">🎮 游戏模式 <span class="caret" id="modeCaret">▾</span></button>
+      <ul class="menu" id="modeMenu" hidden>
+        <li><button class="item active" data-mode="ww12">狼人杀 · 标准 12 人局 <span class="check">✓</span></button></li>
+        <li><button class="item" data-mode="ww6">狼人杀 · 极简 6 人局</button></li>
+        <li><button class="item locked" disabled>谁是卧底 <span class="hint">插件开发中</span></button></li>
+        <li><button class="item locked" disabled>阿瓦隆 <span class="hint">排队中</span></button></li>
+      </ul>
+    </div>
+    <button class="god-btn on" id="godBtn">👁️ 上帝视角</button>
+  </nav>
+
+  <main class="stage">
+    <aside class="wing"><div class="seat-col" id="colL"></div></aside>
+    <div class="center">
+      <header class="banner" id="banner">
+        <span class="icon" id="bannerIcon">🌙</span>
+        <h1 class="title" id="bannerTitle">第 1 夜 · 狼队密谋</h1>
+        <span class="day-chip"><span class="day-label">第</span><span class="day-num" id="bannerDay">1</span><span class="day-label" id="bannerDayUnit">夜</span></span>
+      </header>
+      <div class="theater-wrap"><section class="theater" aria-label="对局对话"><div class="feed" id="feed"></div></section></div>
+      <section class="drawer" id="drawer" hidden>
+        <h2 class="title" id="drawerTitle"></h2>
+        <ul class="bars" id="drawerBars"></ul>
+        <p class="result" id="drawerResult"></p>
+      </section>
+    </div>
+    <aside class="wing"><div class="seat-col" id="colR"></div></aside>
+  </main>
+
+  <footer class="director">
+    <button class="nav" id="prevBtn" aria-label="上一幕">‹</button>
+    <div class="chapters" id="chapters"></div>
+    <button class="nav" id="nextBtn" aria-label="下一幕">›</button>
+    <button class="play" id="playBtn">▶ 自动播放</button>
+  </footer>
+</div>
+
+<script>
+// ===== 数据（与 frontend/src/mock/match.ts 同源，此为展示版） =====
+const ROLES = { wolf: '狼人', wolf_king: '狼王', seer: '预言家', witch: '女巫', hunter: '猎人', guard: '守卫', villager: '平民' };
+const ROLE_CLS = { wolf: 'wolf-c', wolf_king: 'wolf-c', seer: 'seer-c', witch: 'witch-c', hunter: 'good-c', guard: 'good-c', villager: 'good-c' };
+function seats(defs) {
+  const half = Math.ceil(defs.length / 2);
+  return defs.map(function (d, i) {
+    return { id: d[0], name: d[1], persona: d[2], model: d[3], emoji: d[4], role: d[5],
+      team: d[5] === 'wolf' || d[5] === 'wolf_king' ? 'wolf' : 'good', side: i < half ? 'L' : 'R' };
+  });
+}
+const MATCHES = {
+  ww12: {
+    name: '狼人杀 · 标准 12 人局',
+    seats: seats([
+      [1, '林间狐', '悍跳强攻型', 'qwen-max', '🦊', 'wolf_king'],
+      [2, '夜枭', '冷静盘逻辑型', 'deepseek-v3', '🦉', 'seer'],
+      [3, '老好人', '真诚朴实型', 'glm-4', '🐻', 'villager'],
+      [4, '沉默刀客', '寡言观察型', 'qwen-max', '🐱', 'wolf'],
+      [5, '戏精上校', '表演型人格', 'doubao-pro', '🦁', 'villager'],
+      [6, '白月光', '温柔和善型', 'glm-4', '🐰', 'guard'],
+      [7, '数学家', '概率狂魔', 'deepseek-v3', '🐢', 'witch'],
+      [8, '大嗓门', '激情演讲型', 'doubao-pro', '🐮', 'hunter'],
+      [9, '老阴币', '阴阳怪气型', 'qwen-max', '🐙', 'wolf'],
+      [10, '小学生', '直球选手', 'glm-4', '🐧', 'villager'],
+      [11, '奶妈', '照顾全场型', 'deepseek-v3', '🦔', 'villager'],
+      [12, '裁判长', '一本正经型', 'doubao-pro', '🐝', 'wolf'],
+    ]),
+    chapters: [
+      { label: '第 1 夜 · 狼队密谋', phase: 'night', day: 1, sheriff: null, vote: null, dead: [2], feed: [
+        ['system', 0, '🌙 天黑请闭眼……狼人请睁眼。'],
+        ['channel', 1, '都别跳，今晚刀 2 号，那个猫头鹰讲话太有条理了。', '2号大概率预言家，开局带走最稳。'],
+        ['channel', 4, '同意。但我建议明天我装好人，你们仨分头打。', '我要攒人设，后天再捞。'],
+        ['channel', 9, '行，那我就负责搅水，谁蹦跶我踩谁~', '嘿嘿，这局我演个热心好人。'],
+        ['channel', 12, '没有异议。散会。', '如无意外，跟刀即可。'],
+        ['system', 0, '🔪 狼人们达成了一致（上帝视角可见，观众沉浸视角不可见）'],
+      ] },
+      { label: '第 1 天 · 死讯与警长竞选', phase: 'day', day: 1, sheriff: 5, vote: { title: '警长投票', tally: { 1: 3, 5: 4, 7: 2 }, exile: null }, dead: [2], feed: [
+        ['system', 0, '☀️ 天亮了——昨夜，2 号「夜枭」出局。'],
+        ['system', 0, '🏅 警长竞选：1、5、7 号上警。'],
+        ['speech', 1, '我上警！我是来给大家当主心骨的，信我，票跟我走。', '狼王起跳预言家，抢警徽撕好人节奏。'],
+        ['speech', 5, '咳咳——本上校从不写真话，但我今天例外：我真是预言家！', '我不是预言家，但气势必须拉满。'],
+        ['speech', 7, '按贝叶斯分析，上警三人中至少一狼。我查杀节奏请大家记录在案。', '我真是女巫，不能跳，只能打逻辑。'],
+      ] },
+      { label: '第 1 天 · 轮流发言', phase: 'day', day: 1, sheriff: 5, vote: null, dead: [2], feed: [
+        ['system', 0, '🏅 5 号「戏精上校」当选警长，决定逆时针发言。'],
+        ['speech', 3, '我昨晚睡得特别香，什么都没听见。我就一条：谁急谁狼。', '1号喊得最响，先记一笔。'],
+        ['speech', 9, '3号同学太可爱了~ 不过 5 号警长跳得这么坚决，我先跟警长走哦~', '稳住，抱好人小腿。'],
+        ['speech', 7, '1 号的发言全是口号没有信息。警徽在狼手里，这局会很难打。', '1 号悍跳，9 号在带票。'],
+        ['speech', 12, '我反对 7 号的发言方式，扣帽子式推理对局没有任何帮助。', '女巫已死，压力不大。'],
+      ] },
+      { label: '第 1 天 · 放逐投票', phase: 'day', day: 1, sheriff: 5, vote: { title: '放逐投票', tally: { 1: 4, 7: 5, 12: 2, 9: 1, 5: 2 }, exile: 7 }, dead: [2, 7], feed: [
+        ['system', 0, '🗳️ 请各位投票放逐一名玩家（警长 2 票）。'],
+        ['system', 0, '⚖️ 7 号「数学家」被放逐出局。'],
+        ['last_words', 7, '各位，我是女巫。解药还没用。1 号悍跳、9 号跟风，这两张牌至少一狼。别浪费我的药。', '可惜，真相只能带进坟墓一半。'],
+      ] },
+      { label: '第 2 夜 · 风暴前夜', phase: 'night', day: 2, sheriff: 5, vote: null, dead: [2, 7], feed: [
+        ['system', 0, '🌙 第 2 夜降临。狼人请睁眼。'],
+        ['channel', 1, '警徽在手，明天我直接发金水给 9 号。', '警长身份太好用。'],
+        ['channel', 9, '懂了，我哭得惨一点。', '影帝上线。'],
+        ['channel', 12, '今晚刀 8 号，猎人必须死。', '按剧本走。'],
+      ] },
+    ],
+  },
+  ww6: {
+    name: '狼人杀 · 极简 6 人局',
+    seats: seats([
+      [1, '阿汪', '莽撞冲锋型', 'qwen-max', '🐶', 'wolf'],
+      [2, '阿喵', '优雅腹黑型', 'deepseek-v3', '😺', 'seer'],
+      [3, '阿猪', '躺平乐观型', 'glm-4', '🐷', 'villager'],
+      [4, '阿兔', '胆小谨慎型', 'glm-4', '🐰', 'villager'],
+      [5, '阿狼', '老谋深算型', 'qwen-max', '🐺', 'wolf'],
+      [6, '阿雀', '叽叽喳喳型', 'deepseek-v3', '🐦', 'villager'],
+    ]),
+    chapters: [
+      { label: '第 1 夜 · 狼队密谋', phase: 'night', day: 1, sheriff: null, vote: null, dead: [6], feed: [
+        ['system', 0, '🌙 天黑请闭眼……'],
+        ['channel', 1, '刀 6！她话最多。', '话痨先死，江湖规矩。'],
+        ['channel', 5, '可以，但明天都别抢跳。', '稳住就能赢。'],
+      ] },
+      { label: '第 1 天 · 发言与投票', phase: 'day', day: 1, sheriff: null, vote: { title: '放逐投票', tally: { 2: 2, 5: 2 }, exile: null }, dead: [6], feed: [
+        ['system', 0, '☀️ 昨夜，6 号「阿雀」出局。'],
+        ['speech', 2, '我预言家，昨晚验了 5 号——狼人。', '真预言家起跳。'],
+        ['speech', 5, '巧了，我也是预言家，我验的是 2 号：狼人。', '对跳，赌记忆。'],
+        ['speech', 3, '两个预言家……那我先信长得可爱的那个。', '完了，我根本听不懂。'],
+      ] },
+      { label: '第 1 天 · 平安日', phase: 'day', day: 1, sheriff: null, vote: null, dead: [6], feed: [
+        ['system', 0, '🕊️ 平票 —— 平安日，无人出局。'],
+      ] },
+      { label: '第 2 夜', phase: 'night', day: 2, sheriff: null, vote: null, dead: [6], feed: [
+        ['system', 0, '🌙 第 2 夜降临。'],
+      ] },
+    ],
+  },
+};
+
+// ===== 状态与渲染 =====
+var mode = 'ww12';
+var chapterIdx = 0;
+var godView = true;
+var autoplay = false;
+var timer = null;
+
+var $ = function (id) { return document.getElementById(id); };
+var seatMap = function () { var m = {}; MATCHES[mode].seats.forEach(function (s) { m[s.id] = s; }); return m; };
+
+function renderStars() {
+  var html = '';
+  for (var i = 0; i < 34; i++) {
+    var size = 1.5 + ((i * 13) % 5) * 0.55;
+    html += '<span class="star' + (i % 9 === 0 ? ' bright' : '') + '" style="left:' + ((i * 61.8) % 100) +
+      '%;top:' + ((i * 37.7) % 55) + '%;width:' + size + 'px;height:' + size + 'px;animation-delay:' + ((i % 7) * 0.4) + 's"></span>';
+  }
+  $('stars').innerHTML = html;
+}
+
+function seatCard(s, state) {
+  var dead = state.dead.indexOf(s.id) >= 0;
+  var speaking = false;
+  for (var i = state.feed.length - 1; i >= 0; i--) {
+    var f = state.feed[i];
+    if ((f[0] === 'speech' || f[0] === 'channel' || f[0] === 'last_words') && f[1] === s.id) { speaking = true; break; }
+    if (f[0] === 'speech' || f[0] === 'channel' || f[0] === 'last_words') break;
+  }
+  var roleChip = godView
+    ? '<div class="role-chip ' + ROLE_CLS[s.role] + '">' + ROLES[s.role] + '</div>' : '';
+  return '<article class="seat-card ' + s.team + (godView ? ' god' : '') + (dead ? ' dead' : '') + (speaking ? ' speaking' : '') +
+    (state.sheriff === s.id ? ' sheriff' : '') + '">' +
+    (state.sheriff === s.id ? '<span class="badge-sheriff" title="警长">🏅</span>' : '') +
+    '<div class="avatar"><span>' + s.emoji + '</span>' + (dead ? '<span class="grave">✖</span>' : '') + '</div>' +
+    '<div class="meta"><p class="no">' + s.id + ' 号</p><p class="name">' + s.name + '</p><p class="model">' + s.model + '</p></div>' +
+    roleChip + (speaking ? '<span class="speak-dot"></span>' : '') + '</article>';
+}
+
+function renderSeats(state) {
+  var l = '', r = '';
+  MATCHES[mode].seats.forEach(function (s) {
+    var html = seatCard(s, state);
+    if (s.side === 'L') l += html; else r += html;
+  });
+  $('colL').innerHTML = l;
+  $('colR').innerHTML = r;
+}
+
+function bubble(it, sm) {
+  var s = sm[it[1]];
+  var isChannel = it[0] === 'channel';
+  var isLast = it[0] === 'last_words';
+  if (isChannel) {
+    return '<div class="channel-row"><div class="channel-bubble"><p class="who">' + s.emoji + ' ' + s.id + '号 · ' + s.name +
+      ' <span class="tag wolf-tag">狼队频道</span></p><p class="text">' + it[2] + '</p>' +
+      (godView && it[3] ? '<p class="mono"><span class="mono-tag">内心</span>' + it[3] + '</p>' : '') + '</div></div>';
+  }
+  var right = s.side === 'R';
+  var tags = (isLast ? '<span class="tag last-tag">遗言</span>' : '') +
+    (sm[5] && false ? '' : '');
+  return '<div class="bubble-row ' + (right ? 'right' : 'left') + '"><span class="mini-avatar">' + s.emoji + '</span>' +
+    '<div class="bubble"><p class="who">' + s.id + '号 · ' + s.name + tags + '</p><p class="text">' + it[2] + '</p>' +
+    (godView && it[3] ? '<p class="mono"><span class="mono-tag">内心</span>' + it[3] + '</p>' : '') + '</div></div>';
+}
+
+function renderFeed(state) {
+  var sm = seatMap();
+  var html = '';
+  state.feed.forEach(function (it) {
+    if (it[0] === 'system') { html += '<p class="narration">' + it[2] + '</p>'; return; }
+    if (it[0] === 'channel' && !godView) return;
+    html += bubble(it, sm);
+  });
+  $('feed').innerHTML = html;
+  $('feed').scrollTop = $('feed').scrollHeight;
+}
+
+function renderVote(state) {
+  var d = $('drawer');
+  if (!state.vote) { d.hidden = true; return; }
+  d.hidden = false;
+  $('drawerTitle').textContent = '🗳️ ' + state.vote.title;
+  var sm = seatMap();
+  var entries = Object.keys(state.vote.tally).map(function (k) { return { id: +k, n: state.vote.tally[k] }; });
+  var max = Math.max.apply(null, entries.map(function (e) { return e.n; }).concat([1]));
+  entries.sort(function (a, b) { return b.n - a.n; });
+  $('drawerBars').innerHTML = entries.map(function (e) {
+    var s = sm[e.id];
+    return '<li class="bar-row"><span class="who">' + s.emoji + ' ' + e.id + '号 ' + s.name + '</span>' +
+      '<span class="track"><span class="fill" style="width:' + ((e.n / max) * 100) + '%"></span></span>' +
+      '<span class="num">' + e.n + '</span>' +
+      (state.vote.exile === e.id ? '<span class="out">出局</span>' : '') + '</li>';
+  }).join('');
+  var res = $('drawerResult');
+  if (state.vote.exile == null) { res.className = 'result peaceful'; res.textContent = '🕊️ 平票 —— 平安日，无人出局'; }
+  else { res.className = 'result'; res.textContent = '⚖️ ' + state.vote.exile + '号「' + sm[state.vote.exile].name + '」被放逐出局'; }
+}
+
+function renderChapters() {
+  $('chapters').innerHTML = MATCHES[mode].chapters.map(function (c, i) {
+    return '<button class="chapter ' + (i === chapterIdx ? 'now' : i < chapterIdx ? 'done' : '') +
+      '" data-idx="' + i + '">' + c.label + '</button>';
+  }).join('');
+}
+
+function render() {
+  var m = MATCHES[mode];
+  var st = m.chapters[chapterIdx];
+  $('sky').className = 'sky ' + st.phase;
+  $('bannerIcon').textContent = st.phase === 'night' ? '🌙' : '☀️';
+  $('bannerTitle').textContent = st.label;
+  $('bannerDay').textContent = st.day;
+  $('bannerDayUnit').textContent = st.phase === 'night' ? '夜' : '天';
+  renderSeats(st);
+  renderFeed(st);
+  renderVote(st);
+  renderChapters();
+}
+
+// ===== 交互 =====
+$('modeBtn').addEventListener('click', function () {
+  var open = !$('modeMenu').hidden;
+  $('modeMenu').hidden = open;
+  $('modeCaret').classList.toggle('up', !open);
+  this.setAttribute('aria-expanded', String(!open));
+});
+$('modeMenu').addEventListener('click', function (e) {
+  var btn = e.target.closest('.item:not(.locked)');
+  if (!btn) return;
+  mode = btn.dataset.mode;
+  chapterIdx = 0;
+  $('modeMenu').hidden = true;
+  $('modeCaret').classList.remove('up');
+  this.querySelectorAll('.item').forEach(function (b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+  render();
+});
+$('godBtn').addEventListener('click', function () {
+  godView = !godView;
+  this.classList.toggle('on', godView);
+  this.textContent = godView ? '👁️ 上帝视角' : '🙈 沉浸视角';
+  render();
+});
+function step(dir) {
+  var n = chapterIdx + dir;
+  if (n < 0 || n >= MATCHES[mode].chapters.length) return;
+  chapterIdx = n;
+  render();
+}
+$('prevBtn').addEventListener('click', function () { step(-1); });
+$('nextBtn').addEventListener('click', function () { step(1); });
+$('chapters').addEventListener('click', function (e) {
+  var b = e.target.closest('.chapter');
+  if (!b) return;
+  chapterIdx = +b.dataset.idx;
+  render();
+});
+$('playBtn').addEventListener('click', function () {
+  autoplay = !autoplay;
+  this.classList.toggle('on', autoplay);
+  this.textContent = autoplay ? '⏸ 暂停' : '▶ 自动播放';
+  if (timer) { clearInterval(timer); timer = null; }
+  if (autoplay) {
+    timer = setInterval(function () {
+      if (chapterIdx < MATCHES[mode].chapters.length - 1) step(1);
+      else $('playBtn').click();
+    }, 2600);
+  }
+});
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'ArrowRight') step(1);
+  if (e.key === 'ArrowLeft') step(-1);
+  if (e.key === 'g' || e.key === 'G') $('godBtn').click();
+});
+
+renderStars();
+render();
+</script>
+</body>
+</html>

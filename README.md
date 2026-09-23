@@ -13,6 +13,7 @@
 | [events-storage.md](events-storage.md) | 事件模型、可见性、存储表、SSE 契约、Reducer | 加事件类型、改表结构 |
 | [engine.md](engine.md) | MatchRunner、步进循环、并发、容错链 | 改调度/容错策略 |
 | [frontend.md](frontend.md) | 前端路由、组件、事件投影、SSE 消费 | 加页面/组件 |
+| [frontend-design.md](frontend-design.md) | 视觉设计规范（唯一权威）：配色/字体/布局/组件形态；展示成品 design/showcase.html | 改视觉（先改此文档） |
 | [configuration.md](configuration.md) | 配置文件规范与密钥安全 | 加/改配置项 |
 | [api.md](api.md) | REST + SSE API 契约 | 加/改端点 |
 | [milestones.md](milestones.md) | 里程碑、验收标准、测试策略 | 里程碑完成、验收标准变更 |

@@ -1,0 +1,41 @@
+/* 设计 token：贴纸卡通风 —— 墨线描边 + 硬投影 + 贴纸色 */
+:root {
+  /* 墨线与卡面（卡片用米白，整页背景交给天空场景） */
+  --ink: #2d2a3e;
+  --paper: #fff8e7;
+  --paper-dim: #f1e6c8;
+
+  /* 昼 */
+  --sky-day-top: #6fc2f0;
+  --sky-day-bottom: #d6f0fb;
+  --sun: #ffd75e;
+  --grass-day: #8ccb6e;
+  --village-day: #79b364;
+
+  /* 夜 */
+  --sky-night-top: #1e2050;
+  --sky-night-bottom: #4a4f8f;
+  --moon: #f5e960;
+  --grass-night: #3a4a52;
+  --village-night: #262c4e;
+
+  /* 阵营与职能 */
+  --wolf: #e4577e;
+  --good: #f2a93b;
+  --seer: #5b8def;
+  --witch: #59b57c;
+  --sheriff: #f5c542;
+  --dead: #9b97a8;
+
+  /* 质感：粗描边 + 偏移硬投影（贴纸感） */
+  --border-w: 3px;
+  --shadow-pop: 0 4px 0 var(--ink);
+  --shadow-pop-sm: 0 3px 0 var(--ink);
+  --radius: 14px;
+  --radius-lg: 22px;
+
+  /* 字体 */
+  --font-display: 'ZCOOL KuaiLe', 'Baloo 2', 'Noto Sans SC', sans-serif;
+  --font-body: 'Noto Sans SC', sans-serif;
+  --font-num: 'Baloo 2', 'ZCOOL KuaiLe', sans-serif;
+}

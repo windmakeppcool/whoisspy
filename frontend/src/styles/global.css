@@ -1,0 +1,44 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  color: var(--ink);
+  /* 页面底色兜底，真实背景由 SkyBackdrop 场景层提供 */
+  background: var(--sky-day-bottom);
+  overflow: hidden;
+}
+
+button {
+  font-family: inherit;
+  color: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+/* 键盘焦点可见性 */
+:focus-visible {
+  outline: 3px solid var(--sheriff);
+  outline-offset: 2px;
+}
+
+/* 减少动态偏好：关闭装饰动画 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
