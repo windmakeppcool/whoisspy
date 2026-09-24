@@ -1,135 +1,137 @@
-"""狼人杀规则纯函数测试（Red 先行）。
+"""狼人杀规则纯函数测试（唯一板子 standard-9，Red 先行）。
 
-覆盖 docs/games/werewolf.md 的约定：
-- 发牌校验边界（人数/狼数/预数/民数，两 ruleset）
-- 计票与平票（含警长 2 票权重）
-- 胜负判定（minimal：屠城+时限；standard-12：屠边×2+屠城+时限）
-- 夜间结算矩阵（守卫悖论、毒不被挡、同刀同毒）
-- 定刀多数决（平票种子可复现、无合规目标=空刀）
+覆盖 docs/games/werewolf.md（单板收敛见 D23）：
+- 板子校验：只接受 3狼+预女猎+3民，其他 ruleset/组合一律拒绝
+- 发牌：9 座覆盖、同种子可复现
+- 计票：最高票/平票（含 tied）/警长 2 票权重/弃权不计
+- 定刀：多数决/平票 rng/空刀/非法目标过滤
+- 夜间结算：解药只挡刀、毒不被挡、同刀同毒死因、空刀（含 kill=0）平安夜
+- 胜负：神职屠边/平民屠边/屠城/狼全灭/时限（必须白天真的走完）
 """
 
 from random import Random
 
 import pytest
 
+from app.core import BoardSpec
 from app.games.werewolf.rules import (
-    ROLE_DEATH_BY_POISON,
-    ROLE_WEREWOLF,
-    tally_votes,
+    DEATH_BY_KNIFE,
+    DEATH_BY_POISON,
+    PLAYER_COUNT,
+    RULESET,
+    STANDARD9_ROLES,
+    check_winner,
+    deal_roles,
     decide_kill,
     resolve_night,
-    check_winner_minimal,
-    check_winner_standard,
+    tally_votes,
     validate_board,
-    validate_board_minimal,
-    validate_board_standard,
-    deal_roles,
 )
 
+VALID_BOARD = {"ruleset": RULESET, "roles": dict(STANDARD9_ROLES)}
 
-# ---------- 发牌校验 ----------
+ROLES_9 = {1: "wolf", 2: "wolf", 3: "wolf", 4: "seer", 5: "witch", 6: "hunter",
+           7: "villager", 8: "villager", 9: "villager"}
 
-class TestValidateBoardMinimal:
-    def test_标准6人板通过(self):
-        spec = validate_board_minimal({"roles": {"wolf": 2, "seer": 1, "villager": 3}})
-        assert spec.player_count == 6
 
-    def test_人数不足6拒绝(self):
+def alive_all() -> dict[int, bool]:
+    return {s: True for s in ROLES_9}
+
+
+# ---------- 板子校验 ----------
+
+class TestValidateBoard:
+    def test_标准9人局通过(self):
+        spec = validate_board(dict(VALID_BOARD))
+        assert spec.player_count == PLAYER_COUNT == 9
+        assert spec.ruleset == RULESET
+        assert spec.roles == STANDARD9_ROLES
+
+    def test_可调轮次与天数上限(self):
+        cfg = {**VALID_BOARD, "wolf_meeting_rounds": 3, "max_days": 12}
+        spec = validate_board(cfg)
+        assert (spec.wolf_meeting_rounds, spec.max_days) == (3, 12)
+
+    def test_缺省轮次天数(self):
+        spec = validate_board(dict(VALID_BOARD))
+        assert (spec.wolf_meeting_rounds, spec.max_days) == (2, 8)
+
+    @pytest.mark.parametrize("roles", [
+        {"wolf": 3, "seer": 1, "witch": 1, "hunter": 1, "villager": 2},          # 少一民
+        {"wolf": 3, "seer": 1, "witch": 1, "hunter": 1, "guard": 1, "villager": 3},  # 多守卫
+        {"wolf": 2, "seer": 1, "witch": 1, "hunter": 1, "villager": 4},          # 狼数不对
+        {"wolf": 3, "seer": 1, "witch": 1, "hunter": 1, "villager": 3, "wolf_king": 1},  # 多狼王
+        {"wolf": 3, "seer": 2, "witch": 1, "hunter": 1, "villager": 2},          # 双预言家
+        {},
+    ])
+    def test_非固定组合一律拒绝(self, roles):
         with pytest.raises(ValueError):
-            validate_board_minimal({"roles": {"wolf": 1, "villager": 2}})
+            validate_board({"ruleset": RULESET, "roles": roles})
 
-    def test_人数超过10拒绝(self):
-        roles = {"wolf": 3, "villager": 8}
+    def test_角色数量为负拒绝(self):
         with pytest.raises(ValueError):
-            validate_board_minimal({"roles": roles})
+            validate_board({"ruleset": RULESET,
+                            "roles": {**STANDARD9_ROLES, "villager": -1}})
 
-    def test_狼数超过上限拒绝(self):
+    @pytest.mark.parametrize("ruleset", ["minimal", "standard-12", "whatever", ""])
+    def test_其他ruleset拒绝(self, ruleset):
         with pytest.raises(ValueError):
-            validate_board_minimal({"roles": {"wolf": 3, "seer": 1, "villager": 2}})  # 6人狼上限2
+            validate_board({"ruleset": ruleset, "roles": dict(STANDARD9_ROLES)})
 
-    def test_预言家超过2拒绝(self):
+    def test_非法轮次与天数拒绝(self):
         with pytest.raises(ValueError):
-            validate_board_minimal({"roles": {"wolf": 1, "seer": 3, "villager": 3}})
-
-    def test_民为0拒绝(self):
+            validate_board({**VALID_BOARD, "wolf_meeting_rounds": -1})
         with pytest.raises(ValueError):
-            validate_board_minimal({"roles": {"wolf": 2, "seer": 1, "villager": 0}})
-
-    def test_角色总数与人数不符拒绝(self):
-        with pytest.raises(ValueError):
-            validate_board_minimal({"roles": {"wolf": 2, "seer": 1, "villager": 2, "witch": 1}})
-
-
-class TestValidateBoardStandard:
-    def test_标准12人局通过(self):
-        roles = {"wolf": 3, "wolf_king": 1, "seer": 1, "witch": 1, "hunter": 1, "guard": 1, "villager": 4}
-        spec = validate_board_standard({"roles": roles})
-        assert spec.player_count == 12
-
-    def test_非固定组合拒绝(self):
-        with pytest.raises(ValueError):
-            validate_board_standard({"roles": {"wolf": 2, "villager": 10}})
+            validate_board({**VALID_BOARD, "max_days": 0})
 
 
 # ---------- 发牌 ----------
 
 class TestDeal:
-    def test_发牌覆盖全部座位且角色数正确(self):
-        from app.core import BoardSpec
-
-        spec = BoardSpec(game_type="werewolf", ruleset="minimal",
-                         roles={"wolf": 2, "seer": 1, "villager": 3})
-        rng = Random(42)
-        assignments = deal_roles(spec, rng, player_count=6)
-        assert sorted(a.seat for a in assignments) == [1, 2, 3, 4, 5, 6]
-        roles = sorted(a.role for a in assignments)
-        assert roles == ["seer", "villager", "villager", "villager", "wolf", "wolf"]
+    def test_发牌覆盖9座且角色数正确(self):
+        spec = validate_board(dict(VALID_BOARD))
+        assignments = deal_roles(spec, Random(42))
+        assert sorted(a.seat for a in assignments) == list(range(1, 10))
+        counts: dict[str, int] = {}
+        for a in assignments:
+            counts[a.role] = counts.get(a.role, 0) + 1
+        assert counts == STANDARD9_ROLES
 
     def test_同种子可复现(self):
-        from app.core import BoardSpec
-
-        spec = BoardSpec(game_type="werewolf", ruleset="minimal",
-                         roles={"wolf": 2, "seer": 1, "villager": 3})
-        a = deal_roles(spec, Random(7), player_count=6)
-        b = deal_roles(spec, Random(7), player_count=6)
+        spec = validate_board(dict(VALID_BOARD))
+        a = deal_roles(spec, Random(7))
+        b = deal_roles(spec, Random(7))
         assert [(x.seat, x.role) for x in a] == [(x.seat, x.role) for x in b]
 
 
 # ---------- 计票 ----------
 
 class TestTally:
-    def test_普通计票最高票出局(self):
-        # voter→target：1/2/4 号投 3 号，3 号投 4 号
-        votes = {1: 3, 2: 3, 3: 4, 4: 3}
-        result = tally_votes(votes, sheriff=None)
-        assert result == {"exiled": 3, "tie": False}
+    def test_最高票出局(self):
+        assert tally_votes({1: 3, 2: 3, 3: 4, 4: 3}) == {
+            "exiled": 3, "tie": False, "tied": [3]}
 
-    def test_平票标记(self):
-        # 1 号投 2 号、2 号投 1 号 → 各 1 票平票
-        votes = {1: 2, 2: 1}
-        result = tally_votes(votes, sheriff=None)
-        assert result == {"exiled": None, "tie": True}
+    def test_平票返回并列席位(self):
+        assert tally_votes({1: 2, 2: 1}) == {"exiled": None, "tie": True, "tied": [1, 2]}
 
     def test_警长2票权重(self):
-        # 3 号是警长投 2 号（权重 2）：2 号 1+2=3 票 vs 4 号 2 票 → 2 号出局
-        votes = {1: 2, 3: 2, 4: 4, 5: 4}
-        result = tally_votes(votes, sheriff=3)
-        assert result == {"exiled": 2, "tie": False}
+        # 3 号是警长投 2 号（权重 2）：2 号 1+2=3 票 vs 4 号 2 票
+        assert tally_votes({1: 2, 3: 2, 4: 4, 5: 4}, sheriff=3) == {
+            "exiled": 2, "tie": False, "tied": [2]}
 
-    def test_弃权票不计(self):
-        # 1 号弃权(0)，2 号投 3 号，3/4 号投 2 号 → 2 号 2 票出局
-        votes = {1: 0, 2: 3, 3: 2, 4: 2}
-        result = tally_votes(votes, sheriff=None)
-        assert result == {"exiled": 2, "tie": False}
+    def test_弃权不计票(self):
+        assert tally_votes({1: 0, 2: 3, 3: 2, 4: 2}) == {
+            "exiled": 2, "tie": False, "tied": [2]}
+
+    def test_全员弃权为平票且无并列(self):
+        assert tally_votes({1: 0, 2: 0}) == {"exiled": None, "tie": True, "tied": []}
 
 
 # ---------- 定刀多数决 ----------
 
 class TestDecideKill:
     def test_多数决(self):
-        # 3 只狼提案 2 号、1 只提案 5 号 → 2 号当选
-        target, decided_by = decide_kill({1: 2, 4: 2, 7: 2, 3: 5}, rng=Random(1))
-        assert (target, decided_by) == (2, "majority")
+        assert decide_kill({1: 2, 4: 2, 7: 2, 3: 5}, rng=Random(1)) == (2, "majority")
 
     def test_平票用rng且同种子可复现(self):
         a = decide_kill({1: 2, 4: 5}, rng=Random(99))
@@ -138,188 +140,107 @@ class TestDecideKill:
         assert a[1] == "tie_rng"
 
     def test_全弃权为空刀(self):
-        target, decided_by = decide_kill({1: 0, 4: 0}, rng=Random(1))
-        assert target is None
-        assert decided_by == "empty"
+        assert decide_kill({1: 0, 4: 0}, rng=Random(1)) == (None, "empty")
 
     def test_非法目标被过滤(self):
-        target, decided_by = decide_kill({1: 99, 4: 3}, rng=Random(1), valid_targets={3, 5})
-        assert target == 3
+        assert decide_kill({1: 99, 4: 3}, rng=Random(1), valid_targets={3, 5}) == (3, "majority")
 
 
-# ---------- 夜间结算矩阵 ----------
-
-def _night_setup(kill, guard=None, saved=False, poison=None):
-    """构造结算输入。kill=刀口，guard=守卫目标，saved=女巫是否用解药，poison=毒目标。"""
-    return {"kill": kill, "guard": guard, "saved": saved, "poison": poison}
-
+# ---------- 夜间结算 ----------
 
 class TestResolveNight:
     def test_裸刀死(self):
-        res = resolve_night(_night_setup(kill=5))
-        assert res == {"deaths": {5: "knife"}}
-
-    def test_守卫成功免死(self):
-        res = resolve_night(_night_setup(kill=5, guard=5))
-        assert res["deaths"] == {}
+        assert resolve_night({"kill": 5}) == {"deaths": {5: DEATH_BY_KNIFE}}
 
     def test_解药救活(self):
-        res = resolve_night(_night_setup(kill=5, saved=True))
-        assert res["deaths"] == {}
+        assert resolve_night({"kill": 5, "saved": True})["deaths"] == {}
 
-    def test_同守同救悖论死_死因刀杀(self):
-        res = resolve_night(_night_setup(kill=5, guard=5, saved=True))
-        assert res == {"deaths": {5: "knife"}}
-
-    def test_毒不被守卫和解药挡(self):
-        res = resolve_night(_night_setup(kill=5, guard=5, saved=True, poison=5))
-        assert res["deaths"] == {5: ROLE_DEATH_BY_POISON}
+    def test_毒不被解药挡(self):
+        assert resolve_night({"kill": 5, "saved": True, "poison": 5})["deaths"] == {
+            5: DEATH_BY_POISON}
 
     def test_毒另一个人照死(self):
-        res = resolve_night(_night_setup(kill=5, guard=5, poison=7))
-        assert res["deaths"] == {7: ROLE_DEATH_BY_POISON}
+        assert resolve_night({"kill": 5, "poison": 7})["deaths"] == {
+            5: DEATH_BY_KNIFE, 7: DEATH_BY_POISON}
 
-    def test_同刀同毒死因认定刀杀(self):
-        res = resolve_night(_night_setup(kill=5, poison=5))
-        assert res == {"deaths": {5: "knife"}}
+    def test_同刀同毒未救为刀杀(self):
+        assert resolve_night({"kill": 5, "poison": 5})["deaths"] == {5: DEATH_BY_KNIFE}
+
+    def test_同刀同毒已救仍死于毒(self):
+        assert resolve_night({"kill": 5, "saved": True, "poison": 5})["deaths"] == {
+            5: DEATH_BY_POISON}
 
     def test_空刀平安夜(self):
-        res = resolve_night(_night_setup(kill=None))
-        assert res["deaths"] == {}
+        assert resolve_night({"kill": None})["deaths"] == {}
+
+    def test_kill为0也当空刀(self):
+        """回归：0 是空刀哨兵，不能与守卫/解药组合出「0 号死亡」。"""
+        assert resolve_night({"kill": 0, "saved": True})["deaths"] == {}
+        assert resolve_night({"kill": 0, "poison": 3})["deaths"] == {3: DEATH_BY_POISON}
+
+    def test_只毒不刀(self):
+        assert resolve_night({"poison": 4})["deaths"] == {4: DEATH_BY_POISON}
 
 
 # ---------- 胜负 ----------
 
-def _std_alive(wolves=4, seer=1, witch=1, hunter=1, guard=1, villagers=4):
-    roles: dict[int, str] = {}
-    seat = 1
-    for role, n in [("wolf", wolves), ("wolf_king", 0), ("seer", seer), ("witch", witch),
-                    ("hunter", hunter), ("guard", guard), ("villager", villagers)]:
-        for _ in range(n):
-            roles[seat] = role
-            seat += 1
-    return roles
-
-
-class TestWinnerMinimal:
+class TestWinner:
     def test_狼全灭好人胜(self):
-        roles = {1: "wolf", 2: "wolf", 3: "seer", 4: "villager", 5: "villager", 6: "villager"}
-        alive = {1: False, 2: False, 3: True, 4: True, 5: True, 6: True}
-        res = check_winner_minimal(roles, alive)
+        alive = {s: r != "wolf" for s, r in ROLES_9.items()}
+        res = check_winner(ROLES_9, alive)
         assert res is not None and res.winner == "good"
 
-    def test_1狼1民狼胜(self):
-        roles = {1: "wolf", 2: "villager"}
-        alive = {1: True, 2: True}
-        res = check_winner_minimal(roles, alive)
-        assert res is not None and res.winner == "wolf"
-
-    def test_未分胜负返回None(self):
-        roles = {1: "wolf", 2: "seer", 3: "villager", 4: "villager"}
-        alive = {1: True, 2: True, 3: True, 4: True}
-        assert check_winner_minimal(roles, alive) is None
-
-    def test_天数超限狼胜(self):
-        roles = {1: "wolf", 2: "seer", 3: "villager"}
-        alive = {1: True, 2: True, 3: True}
-        res = check_winner_minimal(roles, alive, day=9, max_days=8)
-        assert res is not None and res.winner == "wolf"
-        assert "仍有狼存活" in res.reason
-
-
-class TestWinnerStandard:
-    def test_屠城狼胜(self):
-        roles = _std_alive()  # 座位1-4狼、5预6女7猎8守、9-12民
-        alive = {s: True for s in roles}
-        # 杀 3 神职 + 1 民 → 4狼 vs 4好，尚有守卫与 3 民存活 → 走屠城路径
-        for s in (5, 6, 7, 9):
+    def test_神职屠边狼胜(self):
+        alive = alive_all()
+        for s in (4, 5, 6):
             alive[s] = False
-        res = check_winner_standard(roles, alive)
-        assert res is not None and res.winner == "wolf"
-        assert "屠城" in res.reason
-
-    def test_神职全灭屠边狼胜(self):
-        roles = _std_alive()
-        alive = {s: True for s in roles}
-        for s, r in roles.items():
-            if r in ("seer", "witch", "hunter", "guard"):
-                alive[s] = False
-        # 4狼 vs 4民 → 狼数>=好人数也成立，但走屠边理由
-        res = check_winner_standard(roles, alive)
-        assert res is not None and res.winner == "wolf"
-        assert "神职" in res.reason or "屠边" in res.reason or "存活" in res.reason
-
-    def test_平民全灭屠边狼胜(self):
-        roles = _std_alive()
-        alive = {s: True for s in roles}
-        for s, r in roles.items():
-            if r == "villager":
-                alive[s] = False
-        res = check_winner_standard(roles, alive)
-        assert res is not None and res.winner == "wolf"
-
-    def test_狼全灭好人胜(self):
-        roles = _std_alive()
-        alive = {s: r != "wolf" for s, r in roles.items()}
-        res = check_winner_standard(roles, alive)
-        assert res is not None and res.winner == "good"
-
-    def test_第8天结束狼胜(self):
-        roles = _std_alive()
-        alive = {s: True for s in roles}
-        res = check_winner_standard(roles, alive, day=8, max_days=8)
-        assert res is not None and res.winner == "wolf"
-
-    def test_游戏中返回None(self):
-        roles = _std_alive()
-        alive = {s: True for s in roles}
-        alive[1] = False  # 死1民
-        assert check_winner_standard(roles, alive, day=2, max_days=8) is None
-
-
-# ---------- standard-9（标准 9 人局） ----------
-
-class TestValidateBoardStandard9:
-    def test_标准9人局通过(self):
-        spec = validate_board(
-            {"roles": {"wolf": 3, "seer": 1, "witch": 1, "hunter": 1, "villager": 3}},
-            "standard-9")
-        assert spec.player_count == 9
-        assert spec.ruleset == "standard-9"
-        assert spec.roles["villager"] == 3
-
-    def test_错误组合拒绝(self):
-        # 少民
-        with pytest.raises(ValueError):
-            validate_board({"roles": {"wolf": 3, "seer": 1, "witch": 1, "hunter": 1,
-                                      "villager": 2}}, "standard-9")
-        # 多带守卫（standard-9 无守卫）
-        with pytest.raises(ValueError):
-            validate_board({"roles": {"wolf": 3, "seer": 1, "witch": 1, "guard": 1,
-                                      "villager": 3}}, "standard-9")
-        # 狼数不对
-        with pytest.raises(ValueError):
-            validate_board({"roles": {"wolf": 2, "seer": 1, "witch": 1, "hunter": 1,
-                                      "villager": 4}}, "standard-9")
-
-
-class TestWinnerStandard9:
-    def test_神职屠边_狼胜(self):
-        from app.games.werewolf.rules import check_winner
-        roles = {1: "wolf", 2: "wolf", 3: "wolf", 4: "seer", 5: "witch", 6: "hunter",
-                 7: "villager", 8: "villager", 9: "villager"}
-        # 三神全死，3狼 vs 3民 → 走神职屠边
-        alive = {**{s: False for s in (4, 5, 6)},
-                 **{s: True for s in (1, 2, 3, 7, 8, 9)}}
-        res = check_winner("standard-9", roles, alive, day=3, max_days=8)
+        res = check_winner(ROLES_9, alive, day=3)
         assert res is not None and res.winner == "wolf"
         assert "神职" in res.reason
 
-    def test_狼全灭_好人胜(self):
-        from app.games.werewolf.rules import check_winner
-        roles = {1: "wolf", 2: "wolf", 3: "wolf", 4: "seer", 5: "witch", 6: "hunter",
-                 7: "villager", 8: "villager", 9: "villager"}
-        alive = {**{s: False for s in (1, 2, 3)},
-                 **{s: True for s in (4, 5, 6, 7, 8, 9)}}
-        res = check_winner("standard-9", roles, alive, day=3, max_days=8)
+    def test_平民屠边狼胜(self):
+        alive = alive_all()
+        for s in (7, 8, 9):
+            alive[s] = False
+        res = check_winner(ROLES_9, alive, day=3)
+        assert res is not None and res.winner == "wolf"
+        assert "平民" in res.reason
+
+    def test_屠城狼胜(self):
+        alive = alive_all()
+        for s in (4, 5, 7):  # 死 2 神 + 1 民 → 3 狼 vs 3 好（神职/平民都还有人）
+            alive[s] = False
+        res = check_winner(ROLES_9, alive, day=3)
+        assert res is not None and res.winner == "wolf"
+        assert "屠城" in res.reason
+
+    def test_未分胜负返回None(self):
+        alive = alive_all()
+        alive[7] = False  # 死 1 民，3狼 vs 5好
+        assert check_winner(ROLES_9, alive, day=2, max_days=8) is None
+
+    def test_时限必须等白天走完(self):
+        """回归 M4：第 8 天白天没打完不能判时限狼胜。"""
+        alive = alive_all()
+        assert check_winner(ROLES_9, alive, day=8, max_days=8, day_cycle_done=False) is None
+        res = check_winner(ROLES_9, alive, day=8, max_days=8, day_cycle_done=True)
+        assert res is not None and res.winner == "wolf"
+        assert "第 8 天白天结束" in res.reason
+
+    def test_未到上限不触发时限(self):
+        alive = alive_all()
+        assert check_winner(ROLES_9, alive, day=7, max_days=8, day_cycle_done=True) is None
+
+    def test_好人胜优先于时限(self):
+        alive = {s: r != "wolf" for s, r in ROLES_9.items()}
+        res = check_winner(ROLES_9, alive, day=8, max_days=8, day_cycle_done=True)
         assert res is not None and res.winner == "good"
+
+
+# ---------- BoardSpec 自洽 ----------
+
+def test_rolespec与固定组合一致():
+    spec = BoardSpec(game_type="werewolf", ruleset=RULESET, roles=dict(STANDARD9_ROLES))
+    assert spec.player_count == PLAYER_COUNT
+    assert sorted(spec.role_list) == sorted(
+        ["wolf"] * 3 + ["seer", "witch", "hunter"] + ["villager"] * 3)

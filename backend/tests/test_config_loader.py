@@ -41,8 +41,8 @@ PERSONAS_JSON = """{
 
 BOARDS_JSON = """{
   "boards": [
-    {"id": "p6-classic", "game_type": "werewolf", "ruleset": "minimal",
-     "roles": {"wolf": 2, "seer": 1, "villager": 3},
+    {"id": "p9-standard", "game_type": "werewolf", "ruleset": "standard-9",
+     "roles": {"wolf": 3, "seer": 1, "witch": 1, "hunter": 1, "villager": 3},
      "wolf_meeting_rounds": 2, "max_days": 8}
   ]
 }
@@ -63,13 +63,13 @@ class TestLoadConfig:
         assert isinstance(bundle, ConfigBundle)
         assert [p["id"] for p in bundle.providers] == ["mimo", "mock"]
         assert bundle.personas[0]["id"] == "direct"
-        assert bundle.boards["p6-classic"]["roles"]["wolf"] == 2
+        assert bundle.boards["p9-standard"]["roles"]["wolf"] == 3
 
     async def test_缺文件_回落内置默认(self, data_dir: Path):
         bundle = load_config(data_dir)  # 空目录
         assert any(p["id"] == "mock" for p in bundle.providers)  # 内置 DEFAULT_PROVIDERS
         assert len(bundle.personas) >= 6  # 内置 DEFAULT_PERSONAS
-        assert "p6-classic" in bundle.boards  # 内置 PRESETS
+        assert "p9-standard" in bundle.boards  # 内置 PRESETS
 
     async def test_坏JSON_拒绝启动(self, data_dir: Path):
         (data_dir / "providers.json").write_text("{broken", encoding="utf-8")
@@ -89,13 +89,29 @@ class TestApplyBoards:
         try:
             from app.games.registry import PRESETS, resolve_board
 
-            assert set(PRESETS) == {"p6-classic"}
-            game, spec = resolve_board({"id": "p6-classic"})
-            assert spec.player_count == 6
+            assert set(PRESETS) == {"p9-standard"}
+            game, spec = resolve_board({"id": "p9-standard"})
+            assert spec.player_count == 9
         finally:
             from app.config.loader import apply_default_boards
 
             apply_default_boards()
+
+    async def test_覆盖后能恢复内置默认(self, data_dir: Path):
+        """回归：apply_boards 清空的是注册表里的同一个 dict，内置默认不能被一起清掉。"""
+        (data_dir / "boards.json").write_text(
+            """{"boards": [{"id": "custom-x", "game_type": "werewolf",
+             "ruleset": "standard-9",
+             "roles": {"wolf": 3, "seer": 1, "witch": 1, "hunter": 1, "villager": 3}}]}""",
+            encoding="utf-8")
+        from app.config.loader import apply_default_boards
+
+        apply_boards(load_config(data_dir))
+        from app.games.registry import PRESETS
+
+        assert set(PRESETS) == {"custom-x"}
+        apply_default_boards()
+        assert "p9-standard" in PRESETS
 
 
 class TestParseEnvFile:

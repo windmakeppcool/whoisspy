@@ -6,16 +6,18 @@ Protocol 面向未来换 Postgres（D9）；SQLite 实现全参数化查询（�
 from __future__ import annotations
 
 import asyncio
+import logging
 from pathlib import Path
 from typing import Any, Protocol
 
-import aiosqlite
+import aiosqlite  # noqa: F401  （SQLAlchemy 通过 URL 装载该驱动，此处保留显式依赖声明）
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlmodel import SQLModel
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlmodel import select
 
-from app.core import Event
+from app.core import Event, filtered_view
 from app.storage.models import (
     GameEventRow,
     LlmCallRow,
@@ -24,6 +26,8 @@ from app.storage.models import (
     dumps,
     loads,
 )
+
+log = logging.getLogger(__name__)
 
 
 class MatchRepository(Protocol):
@@ -71,8 +75,13 @@ def _match_dict(row: MatchRow, seats: list[MatchSeatRow]) -> dict[str, Any]:
         "seats": [
             {
                 "seat": s.seat, "name": s.name, "persona_id": s.persona_id,
+                "style": s.style, "strategy": s.strategy,
+                "provider_id": s.provider_id,
                 "base_url": s.base_url, "api_key_env": s.api_key_env,
                 "model": s.model, "role": s.role,
+                "price_per_mtok_in": s.price_per_mtok_in,
+                "price_per_mtok_out": s.price_per_mtok_out,
+                "price_per_mtok_cached_in": s.price_per_mtok_cached_in,
             }
             for s in sorted(seats, key=lambda x: x.seat)
         ],
@@ -82,8 +91,24 @@ def _match_dict(row: MatchRow, seats: list[MatchSeatRow]) -> dict[str, Any]:
 class SqliteMatchRepository:
     """SQLite + aiosqlite 实现。单写者约定：append_event 由 MatchRunner 独占调用。
 
-    append_event 内部用 asyncio 锁串行化 seq 分配（ballot/收刀的并行 gather 共享同一 repo）。
+    seq 由**数据库原子自增**分配（UPDATE ... RETURNING），单进程内再叠一把 asyncio 锁：
+    即使将来多进程/多实例共用同一个库，也不会分配出重复 seq（表上还有唯一约束兜底）。
     """
+
+    # 旧库补列：固定 DDL（无外部输入），重复执行幂等；列已存在时吞掉 duplicate column
+    _MIGRATE_COLUMNS: tuple[str, ...] = (
+        "ALTER TABLE match_seat ADD COLUMN style TEXT DEFAULT ''",
+        "ALTER TABLE match_seat ADD COLUMN strategy TEXT DEFAULT ''",
+        "ALTER TABLE match_seat ADD COLUMN provider_id TEXT DEFAULT ''",
+        "ALTER TABLE match_seat ADD COLUMN price_per_mtok_in REAL DEFAULT 0",
+        "ALTER TABLE match_seat ADD COLUMN price_per_mtok_out REAL DEFAULT 0",
+        "ALTER TABLE match_seat ADD COLUMN price_per_mtok_cached_in REAL DEFAULT 0",
+    )
+    # 关键约束：失败**不能静默**——若旧库已有重复 (match_id, seq)，
+    # 索引建不上而没人知道，seq 唯一性从此名存实亡（见 duplicate_seq_groups）
+    _MIGRATE_INDEXES: tuple[str, ...] = (
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_game_event_match_seq ON game_event(match_id, seq)",
+    )
 
     def __init__(self, db_path: str | None = None):
         self._path = db_path or _default_db_path()
@@ -96,6 +121,29 @@ class SqliteMatchRepository:
             await conn.exec_driver_sql("PRAGMA journal_mode=WAL")
             await conn.exec_driver_sql("PRAGMA busy_timeout=5000")
             await conn.run_sync(SQLModel.metadata.create_all)
+        for ddl in self._MIGRATE_COLUMNS:
+            try:
+                async with self._engine.begin() as conn:
+                    await conn.exec_driver_sql(ddl)
+            except Exception:  # 列已存在 → 幂等跳过
+                pass
+        for ddl in self._MIGRATE_INDEXES:
+            try:
+                async with self._engine.begin() as conn:
+                    await conn.exec_driver_sql(ddl)
+            except Exception as e:
+                dups = await self.duplicate_seq_groups()
+                log.error("补唯一索引失败（%s）；重复 (match_id, seq) 前几组: %s。"
+                          "seq 唯一性当前不成立，请先清理重复事件再重启。", e, dups[:5])
+
+    async def duplicate_seq_groups(self, limit: int = 20) -> list[tuple[int, int, int]]:
+        """返回重复 (match_id, seq) 组 [(match_id, seq, 次数)]，用于启动自检与排障。"""
+        async with self._session() as sess:
+            rows = await sess.execute(text(
+                "SELECT match_id, seq, COUNT(*) AS n FROM game_event "
+                "GROUP BY match_id, seq HAVING COUNT(*) > 1 ORDER BY n DESC LIMIT :lim"),
+                {"lim": limit})
+            return [(int(r[0]), int(r[1]), int(r[2])) for r in rows.all()]
 
     async def close(self) -> None:
         await self._engine.dispose()
@@ -114,9 +162,17 @@ class SqliteMatchRepository:
             for s in seats:
                 sess.add(MatchSeatRow(match_id=row.id, seat=s["seat"], name=s.get("name", ""),
                                       persona_id=s.get("persona_id", ""),
+                                      style=s.get("style", ""),
+                                      strategy=s.get("strategy", ""),
+                                      provider_id=s.get("provider_id", ""),
                                       base_url=s.get("base_url", ""),
                                       api_key_env=s.get("api_key_env", ""),
-                                      model=s.get("model", ""), role=s.get("role", "")))
+                                      model=s.get("model", ""),
+                                      price_per_mtok_in=float(s.get("price_per_mtok_in", 0.0) or 0.0),
+                                      price_per_mtok_out=float(s.get("price_per_mtok_out", 0.0) or 0.0),
+                                      price_per_mtok_cached_in=float(
+                                          s.get("price_per_mtok_cached_in", 0.0) or 0.0),
+                                      role=s.get("role", "")))
             await sess.commit()
             seat_rows = list((await sess.execute(select(MatchSeatRow).where(MatchSeatRow.match_id == row.id)) ).scalars())
             return _match_dict(row, seat_rows)
@@ -132,17 +188,22 @@ class SqliteMatchRepository:
     async def list_matches(self) -> list[dict[str, Any]]:
         async with self._session() as sess:
             rows = list((await sess.execute(select(MatchRow).order_by(MatchRow.id.desc()))).scalars())
-            out: list[dict[str, Any]] = []
-            for row in rows:
-                seat_rows = list((await sess.execute(select(MatchSeatRow).where(MatchSeatRow.match_id == row.id))).scalars())
-                out.append(_match_dict(row, seat_rows))
-            return out
+            if not rows:
+                return []
+            ids = [row.id for row in rows]
+            seat_rows = list((await sess.execute(
+                select(MatchSeatRow).where(MatchSeatRow.match_id.in_(ids)))).scalars())
+        grouped: dict[int, list[MatchSeatRow]] = {}
+        for s in seat_rows:
+            grouped.setdefault(s.match_id, []).append(s)
+        return [_match_dict(row, grouped.get(row.id, [])) for row in rows]
 
     async def update_match(self, match_id: int, *, status: str,
                            result: dict[str, Any] | None = None) -> None:
         async with self._session() as sess:
             row = await sess.get(MatchRow, match_id)
-            assert row is not None
+            if row is None:
+                raise ValueError(f"对局不存在: {match_id}")
             row.status = status
             if result is not None:
                 row.result_json = dumps(result)
@@ -157,15 +218,17 @@ class SqliteMatchRepository:
             await sess.commit()
 
     async def append_event(self, match_id: int, event: Event) -> Event:
-        """seq 取自 match.current_seq+1，锁内读改写，保证并行 gather 下连续唯一。"""
-        import asyncio as _asyncio
-
+        """seq 由 DB 原子自增分配（UPDATE ... RETURNING），保证并发/多进程下唯一连续。"""
         async with self._seq_lock:
             async with self._session() as sess:
                 row = await sess.get(MatchRow, match_id)
-                assert row is not None
-                seq = row.current_seq + 1
-                row.current_seq = seq
+                if row is None:
+                    raise ValueError(f"对局不存在: {match_id}")
+                result = await sess.execute(
+                    text("UPDATE match SET current_seq = current_seq + 1 "
+                         "WHERE id = :mid RETURNING current_seq"),
+                    {"mid": match_id})
+                seq = int(result.scalar_one())
                 sess.add(GameEventRow(
                     match_id=match_id, seq=seq, type=event.type,
                     day_index=event.day_index, phase=event.phase,
@@ -177,6 +240,7 @@ class SqliteMatchRepository:
         return event
 
     async def list_events(self, match_id: int, after_seq: int, view: str) -> list[Event]:
+        """读事件并做**出站可见性过滤**（core.filtered_view 是唯一过滤点）。"""
         async with self._session() as sess:
             rows = list((await sess.execute(select(GameEventRow)
                 .where(GameEventRow.match_id == match_id, GameEventRow.seq > after_seq)
@@ -188,7 +252,7 @@ class SqliteMatchRepository:
                 day_index=r.day_index, phase=r.phase,
                 vis=_vis_from(r.vis_level, loads(r.vis_seats_json)), seq=r.seq,
             )
-            if view == "god" or ev.vis.level == "public":
+            if filtered_view(ev, view) is not None:
                 out.append(ev)
         return out
 

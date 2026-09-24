@@ -90,8 +90,8 @@ async def api_client(tmp_path):
             yield c
 
 
-_SEATS = [{"seat": i, "persona_id": "calm", "base_url": "", "api_key_env": "",
-           "model": "mock", "name": f"p{i}"} for i in range(1, 7)]
+_SEATS = [{"seat": i, "persona_id": "calm-analyst", "base_url": "", "api_key_env": "",
+           "model": "mock", "name": f"p{i}"} for i in range(1, 10)]
 
 
 async def test_SSE流推送事件帧(api_client):
@@ -101,7 +101,7 @@ async def test_SSE流推送事件帧(api_client):
     导致流在第一个事件即抛 TypeError、连接中断。
     """
     resp = await api_client.post("/api/matches", json={
-        "game_type": "werewolf", "board": {"id": "p6-classic"}, "seats": _SEATS})
+        "game_type": "werewolf", "board": {"id": "p9-standard"}, "seats": _SEATS})
     assert resp.status_code == 200, resp.text
     match_id = resp.json()["id"]
 

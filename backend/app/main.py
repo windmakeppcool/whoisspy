@@ -8,7 +8,7 @@ import asyncio
 import uvicorn
 
 from app.api.app import create_app
-from app.games.registry import PRESETS
+from app.games.registry import DEFAULT_BOARD_ID, PRESETS
 
 app = create_app()
 
@@ -21,15 +21,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                         help="TUI 观看的对局 ID（0 = 启动时自动创建一局）")
     parser.add_argument("--real", action="store_true",
                         help="TUI 自动开局用真实 LLM（首个非 mock provider）而非 mock")
-    parser.add_argument("--board", default="p6-classic", choices=sorted(PRESETS),
-                        help="自动开局的板子（默认 p6-classic）")
+    parser.add_argument("--board", default=DEFAULT_BOARD_ID, choices=sorted(PRESETS),
+                        help=f"自动开局的板子（默认 {DEFAULT_BOARD_ID}）")
     parser.add_argument("--port", type=int, default=8000, help="后端端口")
     return parser.parse_args(argv)
 
 
 async def create_match_via_api(base_url: str, *, real: bool = False,
                                data_dir: str | None = None,
-                               board_id: str = "p6-classic") -> int:
+                               board_id: str = DEFAULT_BOARD_ID) -> int:
     """通过后端 API 自动创建一局，返回对局 ID。
 
     座位数按板子 player_count 构建（如 p9-standard = 9 座）。
@@ -91,7 +91,7 @@ async def start_backend(port: int,
 
 
 async def run_tui_mode(match_id: int, port: int, *, real: bool = False,
-                       board: str = "p6-classic") -> None:
+                       board: str = DEFAULT_BOARD_ID) -> None:
     """TUI 模式：启动后端 + 打开 TUI。match_id 为 0 时自动创建一局。"""
     server_ref: dict[str, uvicorn.Server] = {}
     # 在后台启动后端（持有 server 引用以便优雅关闭）

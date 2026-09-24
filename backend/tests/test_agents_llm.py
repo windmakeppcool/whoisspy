@@ -222,7 +222,7 @@ class TestRuleSlicesByStep:
 
         class Spy:
             async def ask_json(self, *, base_url, api_key, model, messages,
-                               purpose, match_id=0):
+                               purpose, match_id=0, **kw):
                 captured.append(messages[0]["content"])
                 return {"monologue": "", "speech": "", "action": None}
 
@@ -248,7 +248,7 @@ class TestRuleSlicesByStep:
 
         class Spy:
             async def ask_json(self, *, base_url, api_key, model, messages,
-                               purpose, match_id=0):
+                               purpose, match_id=0, **kw):
                 captured.append(messages[0]["content"])
                 return {"monologue": "", "speech": "", "action": None}
 
@@ -328,3 +328,53 @@ class TestPromptAssembly:
                               memory=memory, request=req)
         assert '<speech seat="1">' in p
         assert "指令禁读区" in p
+
+
+class TestWitchKnifeInfo:
+    """回归 S2：女巫行动请求必须把当晚刀口带进 prompt（docs/games/werewolf.md:52）。"""
+
+    @staticmethod
+    async def _prompt_for(kill, used_save: bool = False) -> str:
+        from random import Random
+
+        from app.games.base import Step
+        from app.games.registry import resolve_board
+
+        captured: list[str] = []
+
+        class Spy:
+            async def ask_json(self, *, base_url, api_key, model, messages,
+                               purpose, match_id=0, **kw):
+                captured.append(messages[0]["content"])
+                return {"monologue": "", "speech": "", "action": None}
+
+        game, spec = resolve_board({"id": "p9-standard"})
+        state = game.initial_state(spec, game.deal(spec, Random(1)))
+        witch = next(s for s in sorted(state.roles) if state.roles[s] == "witch")
+        state.extra["night"] = {"kill": kill}
+        state.extra["used_save"] = used_save
+        runner = MatchRunner(match_id=1, game=game, spec=spec, repo=None, gateway=Spy(),
+                             seed=1, seat_meta={witch: {"model": "mock", "role": "witch"}})
+        runner._state = state
+        step = Step(kind="witch_turn")
+        await runner._ask(witch, game.action_schema(state, step), "witch_turn", step)
+        return captured[0]
+
+    async def test_有刀口时告知刀口(self):
+        p = await self._prompt_for(kill=7)
+        assert "刀口" in p and "7 号" in p
+
+    async def test_空刀夜说明解药无法使用(self):
+        p = await self._prompt_for(kill=None)
+        assert "空刀" in p and "解药无法使用" in p
+
+    async def test_解药已用不再给刀口(self):
+        p = await self._prompt_for(kill=7, used_save=True)
+        assert "7 号" not in p.split("合法目标座位")[0]
+        assert "解药已用完" in p
+
+    def test_prompt_extra落在指令层(self):
+        req = ActionRequest(action_type="save", prompt="请用药", prompt_extra="当晚刀口：5 号。")
+        p = build_user_prompt(rule_slices={"overview": "G"}, identity="I", style="",
+                              strategy="", memory="MEM", request=req)
+        assert p.index("MEM") < p.index("当晚刀口：5 号") < p.index("请只输出一个 JSON")

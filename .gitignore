@@ -14,6 +14,11 @@ venv/
 .mypy_cache/
 .ruff_cache/
 
+# 测试/临时产物（TEMP 指向工作目录时 pytest/脚本会落在仓库里）
+backend/pytest-of-*/
+backend/tmp*/
+backend/match-*-dialog.json
+
 # Node
 node_modules/
 dist/

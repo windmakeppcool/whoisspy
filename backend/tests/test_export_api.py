@@ -17,12 +17,12 @@ async def client(tmp_path):
             yield c
 
 
-SEATS = [{"seat": i, "persona_id": "calm", "base_url": "", "api_key_env": "",
-          "model": "mock", "name": f"p{i}"} for i in range(1, 7)]
+SEATS = [{"seat": i, "persona_id": "calm-analyst", "base_url": "", "api_key_env": "",
+          "model": "mock", "name": f"p{i}"} for i in range(1, 10)]
 
 
 async def _create(client: httpx.AsyncClient) -> dict:
-    body = {"game_type": "werewolf", "board": {"id": "p6-classic"}, "seats": SEATS}
+    body = {"game_type": "werewolf", "board": {"id": "p9-standard"}, "seats": SEATS}
     resp = await client.post("/api/matches", json=body)
     assert resp.status_code == 200, resp.text
     return resp.json()

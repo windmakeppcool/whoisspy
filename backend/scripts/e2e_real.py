@@ -1,8 +1,7 @@
 """真实 LLM 跑一局（e2e）：读 backend/data 配置 + app/config/.env，全座位同一 provider。
 
 用法：
-    python scripts/e2e_real.py                     # p6-classic，provider 取 providers.json 首个非 mock
-    python scripts/e2e_real.py --board p9-standard
+    python scripts/e2e_real.py                     # p9-standard，provider 取 providers.json 首个非 mock
     python scripts/e2e_real.py --provider mimo --model mimo-v2.6-flash
 """
 
@@ -23,7 +22,7 @@ from app.config.loader import (  # noqa: E402
     parse_env_file,
 )
 from app.engine.runner import MatchRunner  # noqa: E402
-from app.games.registry import PRESETS, resolve_board  # noqa: E402
+from app.games.registry import DEFAULT_BOARD_ID, PRESETS, resolve_board  # noqa: E402
 from app.llm.gateway import OpenAICompatGateway  # noqa: E402
 from app.scripts_helpers.e2e import build_real_seats, pick_provider  # noqa: E402
 from app.storage.repo import SqliteMatchRepository, SqliteUsageRepository  # noqa: E402
@@ -68,15 +67,28 @@ async def run_real(board_id: str, provider_id: str = "", model_id: str = "") -> 
                "model_assignments": assignments},  # 分配记录随对局落库留痕
         rng_seed=seed, seats=seats)
     roles = {a.seat: a.role for a in game.deal(spec, __import__("random").Random(seed))}
-    seat_meta = {s: {"model": seats[s - 1]["model"],
-                     "base_url": seats[s - 1]["base_url"],
-                     "api_key_env": seats[s - 1]["api_key_env"],
-                     "api_key": os.environ.get(seats[s - 1]["api_key_env"], ""),
-                     "style": "", "strategy": "", "role": r}
-                 for s, r in roles.items()}
+    personas_by_id = {p["id"]: p for p in bundle.personas}
+    models_by_id = {m["id"]: m for m in provider.get("models", [])}
+    seat_meta = {}
+    for s in seats:
+        persona = personas_by_id.get(s["persona_id"], {})
+        model_cfg = models_by_id.get(s["model"], {})
+        price_in = float(model_cfg.get("price_per_mtok_in", 0.0) or 0.0)
+        seat_meta[s["seat"]] = {
+            "model": s["model"], "base_url": s["base_url"],
+            "api_key_env": s["api_key_env"],
+            "api_key": os.environ.get(s["api_key_env"], ""),
+            # 人设与单价同样进快照（与 API 路径行为一致，D11）
+            "style": persona.get("style", ""), "strategy": persona.get("strategy", ""),
+            "price_per_mtok_in": price_in,
+            "price_per_mtok_out": float(model_cfg.get("price_per_mtok_out", 0.0) or 0.0),
+            "price_per_mtok_cached_in": float(
+                model_cfg.get("price_per_mtok_cached_in", price_in) or 0.0),
+            "role": roles[s["seat"]],
+        }
     gw = OpenAICompatGateway(usage_sink=_make_sink(usage_repo, m["id"]))
     runner = MatchRunner(match_id=m["id"], game=game, spec=spec, repo=repo,
-                         gateway=gw, seed=seed, seat_meta=seat_meta)
+                         gateway=gw, seed=seed, seat_meta=seat_meta, board_id=board_id)
     result = await runner.run()
     usage = await usage_repo.summarize(m["id"])
     print(json.dumps({
@@ -100,7 +112,7 @@ def _make_sink(usage_repo: SqliteUsageRepository, match_id: int):
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="真实 LLM 跑一局狼人杀")
-    ap.add_argument("--board", default="p6-classic", choices=sorted(PRESETS))
+    ap.add_argument("--board", default=DEFAULT_BOARD_ID, choices=sorted(PRESETS))
     ap.add_argument("--provider", default="", help="provider id（默认取首个非 mock）")
     ap.add_argument("--model", default="", help="模型 id（默认取 provider 首个模型）")
     args = ap.parse_args()

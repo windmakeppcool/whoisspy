@@ -31,10 +31,10 @@ def _is_night_phase(phase: str) -> bool:
     return phase in ("night", "night_resolve") or "night" in phase
 
 
-def _seat_str(seat: int | None) -> str | None:
-    """座位号 → 显示字符串。"""
+def _seat_str(seat: int | None) -> str:
+    """座位号 → 显示字符串；0/None/非座位一律给占位串，保证 join 不炸。"""
     if seat is None or seat == 0:
-        return None
+        return "未知座位"
     return f"{seat}号"
 
 

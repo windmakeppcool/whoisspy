@@ -8,6 +8,6 @@ from __future__ import annotations
 from app.core import ActionRequest
 
 
-def fallback_action(request: ActionRequest, rng_seed: int = 0) -> dict:
-    """按动作类型返回中性兜底动作。"""
+def fallback_action(request: ActionRequest) -> dict:
+    """按动作类型返回中性兜底动作（插件未提供 neutral_action 时的通用回落）。"""
     return {"type": request.action_type, "target": 0}

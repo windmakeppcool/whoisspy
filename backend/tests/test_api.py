@@ -19,12 +19,12 @@ async def client(tmp_path):
             yield c
 
 
-SEATS = [{"seat": i, "persona_id": "calm", "base_url": "", "api_key_env": "",
-          "model": "mock", "name": f"p{i}"} for i in range(1, 7)]
+SEATS = [{"seat": i, "persona_id": "calm-analyst", "base_url": "", "api_key_env": "",
+          "model": "mock", "name": f"p{i}"} for i in range(1, 10)]
 
 
 async def _create(client: httpx.AsyncClient, **overrides) -> dict:
-    body = {"game_type": "werewolf", "board": {"id": "p6-classic"}, "seats": SEATS}
+    body = {"game_type": "werewolf", "board": {"id": "p9-standard"}, "seats": SEATS}
     body.update(overrides)
     resp = await client.post("/api/matches", json=body)
     assert resp.status_code == 200, resp.text
@@ -35,21 +35,28 @@ class TestMatchApi:
     async def test_创建对局返回配置(self, client):
         m = await _create(client)
         assert m["id"] > 0 and m["status"] in ("created", "running", "finished")
-        assert len(m["seats"]) == 6
+        assert len(m["seats"]) == 9
+        assert m["ruleset"] == "standard-9"
 
     async def test_坏板子422(self, client):
         resp = await client.post("/api/matches", json={
             "game_type": "werewolf",
-            "board": {"ruleset": "minimal", "roles": {"wolf": 5, "villager": 1}},
+            "board": {"ruleset": "minimal", "roles": {"wolf": 2, "villager": 4}},
             "seats": SEATS})
         assert resp.status_code == 422
+
+    async def test_未知板子id_422(self, client):
+        resp = await client.post("/api/matches", json={
+            "game_type": "werewolf", "board": {"id": "p6-classic"}, "seats": SEATS})
+        assert resp.status_code == 422
+        assert "未知板子" in resp.text
 
     async def test_列表与详情(self, client):
         m = await _create(client)
         rows = (await client.get("/api/matches")).json()
         assert any(r["id"] == m["id"] for r in rows)
         got = (await client.get(f"/api/matches/{m['id']}")).json()
-        assert got["board"]["roles"]["wolf"] == 2
+        assert got["board"]["roles"]["wolf"] == 3
 
     async def test_详情404(self, client):
         resp = await client.get("/api/matches/99999")
@@ -101,7 +108,8 @@ class TestMatchApi:
 
     async def test_牌桌与档案目录(self, client):
         boards = (await client.get("/api/catalog/boards")).json()
-        assert any(b["id"] == "p12-standard" for b in boards)
+        # 单板收敛：目录里只有 p9-standard（D23）
+        assert [b["id"] for b in boards] == ["p9-standard"]
         personas = (await client.get("/api/catalog/personas")).json()
         assert personas and "style" in personas[0]
 

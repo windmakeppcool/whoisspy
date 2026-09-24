@@ -10,7 +10,8 @@ from app.core import Event
 
 PHASE_LABELS: dict[str, str] = {
     "night_start": "夜幕降临", "wolf_meeting": "狼队密谋", "seer_check": "预言家行动",
-    "witch_turn": "女巫行动", "night_resolve": "夜间结算", "day_speech": "白天发言",
+    "witch_turn": "女巫行动", "sheriff_elect": "警长竞选", "night_resolve": "夜间结算",
+    "speech_order": "发言定序", "day_speech": "白天发言",
     "day_vote": "放逐投票", "exile_resolve": "放逐结算",
 }
 
@@ -112,6 +113,29 @@ def apply_event(vm: MatchVM, ev: Event, god_view: bool) -> MatchVM:
         else:
             seats_text = "、".join(f"{s}号" for s in dead_seats)
             next_vm.feed.append({"type": "system", "text": f"昨夜死亡：{seats_text}"})
+
+    # 警长 / 开枪 / 定序（standard-9 关键节拍）
+    elif ev.type == "sheriff.registered":
+        seats = p.get("seats") or []
+        next_vm.feed.append({"type": "system",
+                             "text": ("上警：" + "、".join(f"{s}号" for s in seats))
+                             if seats else "无人上警"})
+    elif ev.type == "sheriff.badge":
+        if p.get("action") == "transfer":
+            next_vm.feed.append({"type": "system", "text": f"警徽移交给 {p.get('to')}号"})
+        else:
+            next_vm.feed.append({"type": "system", "text": "警徽被撕毁"})
+    elif ev.type == "gun.shoot":
+        if p.get("target"):
+            next_vm.feed.append({"type": "system",
+                                 "text": f"{p.get('seat')}号开枪带走 {p.get('target')}号"})
+        else:
+            next_vm.feed.append({"type": "system", "text": f"{p.get('seat')}号放弃开枪"})
+    elif ev.type == "day.speech_order":
+        order = p.get("order") or []
+        if order:
+            next_vm.feed.append({"type": "system",
+                                 "text": "发言顺序：" + "→".join(f"{s}号" for s in order)})
 
     # 投票
     elif ev.type == "vote.cast":

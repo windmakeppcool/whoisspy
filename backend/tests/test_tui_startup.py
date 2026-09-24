@@ -72,19 +72,19 @@ def test_real自动开局载荷为真实provider(monkeypatch):
 
     assert mid == 9
     body = fake_client.post.call_args.kwargs["json"]
-    assert len(body["seats"]) == 6
+    assert len(body["seats"]) == 9
     assert all(s["model"] == "mimo-flash" for s in body["seats"])
     assert all(s["base_url"] == "https://x.example/v1" for s in body["seats"])
     assert all(s["api_key_env"] == "MIMO_API_KEY" for s in body["seats"])
     # 分配记录随 board 透传（D19 留痕：复盘能查到谁被分到哪个模型、依据是什么）
     ma = body["board"]["model_assignments"]
-    assert len(ma) == 6
+    assert len(ma) == 9
     assert all(a["basis"] in ("persona_binding", "random") for a in ma)
-    assert [a["seat"] for a in ma] == [1, 2, 3, 4, 5, 6]
+    assert [a["seat"] for a in ma] == list(range(1, 10))
 
 
-def test_自动开局请求载荷为6座mock局():
-    """create_match_via_api 需 POST 一局 6 座位全 mock 的 p6-classic。"""
+def test_自动开局请求载荷为9座mock局():
+    """create_match_via_api 需 POST 一局 9 座位全 mock 的 p9-standard。"""
     from unittest.mock import MagicMock, patch, AsyncMock
     from app.main import create_match_via_api
 
@@ -105,21 +105,21 @@ def test_自动开局请求载荷为6座mock局():
     args, kwargs = fake_client.post.call_args
     assert args[0] == "http://127.0.0.1:8000/api/matches"
     body = kwargs["json"]
-    assert body["board"]["id"] == "p6-classic"
-    assert len(body["seats"]) == 6
+    assert body["board"]["id"] == "p9-standard"
+    assert len(body["seats"]) == 9
     assert all(s["model"] == "mock" for s in body["seats"])
-    assert [s["seat"] for s in body["seats"]] == [1, 2, 3, 4, 5, 6]
+    assert [s["seat"] for s in body["seats"]] == list(range(1, 10))
 
 
 def test_解析board参数():
-    """--board 可选标准 9 人局等预设。"""
+    """--board 可选标准 9 人局预设。"""
     args = parse_args(["--tui", "--board", "p9-standard"])
     assert args.board == "p9-standard"
 
 
-def test_默认board为p6_classic():
+def test_默认board为p9_standard():
     args = parse_args(["--tui"])
-    assert args.board == "p6-classic"
+    assert args.board == "p9-standard"
 
 
 def test_自动开局按板子人数创建p9局():

@@ -11,12 +11,36 @@ import random
 import time
 from typing import Any, Protocol
 
+import openai
 from openai import AsyncOpenAI
 
 from app.agents.protocol import parse_agent_response
 
 DEFAULT_TIMEOUT_S = 60.0
-DEFAULT_RETRY_DELAYS = (2.0, 5.0)  # 仅网络/超时类错误重试
+DEFAULT_RETRY_DELAYS = (2.0, 5.0)  # 仅网络/超时/限流/5xx 类错误重试
+
+# 可重试异常：必须显式列出 openai SDK 的异常类型——
+# APIConnectionError / APITimeoutError / RateLimitError / InternalServerError
+# 都不继承内置 ConnectionError/TimeoutError（实测 openai 3.x），
+# 只捕内置异常会导致生产路径「一次都不重试」（历史 bug）。
+_RETRYABLE_ERRORS: tuple[type[BaseException], ...] = (
+    ConnectionError, TimeoutError,
+    openai.APIConnectionError, openai.APITimeoutError,
+    openai.RateLimitError, openai.InternalServerError,
+)
+
+
+def _is_timeout(err: BaseException) -> bool:
+    """是否超时类错误（用于 usage 的 status 归类）。"""
+    return isinstance(err, (asyncio.TimeoutError, TimeoutError, openai.APITimeoutError))
+
+
+def _is_retryable(err: BaseException) -> bool:
+    """网络/超时/限流/5xx 可重试；4xx 参数错、鉴权失败不重试。"""
+    if isinstance(err, _RETRYABLE_ERRORS):
+        return True
+    return isinstance(err, openai.APIStatusError) and (
+        err.status_code == 429 or err.status_code >= 500)
 
 
 def _usage_get(obj: Any, name: str) -> Any:
@@ -44,6 +68,22 @@ def parse_usage_tokens(usage: Any) -> dict[str, int]:
         "completion_tokens": _int(_usage_get(usage, "completion_tokens")),
         "cached_prompt_tokens": cached,
     }
+
+
+def compute_cost_micros(tokens: dict[str, int], *, price_in: float = 0.0,
+                        price_out: float = 0.0, price_cached_in: float | None = None) -> int:
+    """按模型单价折算费用（单位：百万分之一货币单位，如「微元」）。
+
+    单价定义：price_* = 每 1,000,000 token 的价格（providers.json 的 price_per_mtok_*）。
+    T 个 token 的费用 = T × price / 1e6 货币单位 = T × price 微单位。
+    缓存命中价缺省与输入价相同（未配置时不高估也不低估，如实按输入价计）。
+    """
+    cached = int(tokens.get("cached_prompt_tokens", 0) or 0)
+    prompt = int(tokens.get("prompt_tokens", 0) or 0)
+    completion = int(tokens.get("completion_tokens", 0) or 0)
+    cached_price = price_in if price_cached_in is None else price_cached_in
+    uncached = max(prompt - cached, 0)
+    return int(round(uncached * price_in + cached * cached_price + completion * price_out))
 
 
 class _Inner(Protocol):
@@ -85,17 +125,24 @@ class MockLLM:
 
     async def ask_json(self, *, base_url: str, api_key: str, model: str,
                        messages: list[dict[str, str]], purpose: str,
-                       match_id: int = 0) -> dict[str, Any]:
+                       match_id: int = 0, price_in: float = 0.0, price_out: float = 0.0,
+                       price_cached_in: float | None = None) -> dict[str, Any]:
         """与 OpenAICompatGateway 同接口：Mock 不做重试/修复，失败如实抛出。"""
         raw = await self.complete(base_url=base_url, api_key=api_key, model=model,
                                   messages=messages, purpose=purpose)
         if self._sink is not None:
             pt = sum(len(m.get("content", "")) for m in messages) // 4
+            tokens = {"prompt_tokens": pt, "completion_tokens": len(raw) // 4,
+                      "cached_prompt_tokens": 0}
             await self._sink.record_call(
                 match_id=match_id, purpose=purpose, model=model,
-                prompt_tokens=pt, completion_tokens=len(raw) // 4,
+                prompt_tokens=tokens["prompt_tokens"],
+                completion_tokens=tokens["completion_tokens"],
                 cached_prompt_tokens=0,
-                cost_micros=0, latency_ms=1, status="ok")
+                cost_micros=compute_cost_micros(tokens, price_in=price_in,
+                                                price_out=price_out,
+                                                price_cached_in=price_cached_in),
+                latency_ms=1, status="ok")
         return parse_agent_response(raw)
 
 
@@ -180,7 +227,9 @@ class OpenAICompatGateway:
 
     async def _raw_complete(self, *, base_url: str, api_key: str, model: str,
                             messages: list[dict[str, str]], purpose: str,
-                            match_id: int = 0) -> str:
+                            match_id: int = 0, price_in: float = 0.0,
+                            price_out: float = 0.0,
+                            price_cached_in: float | None = None) -> str:
         t0 = time.monotonic()
         status, err = "ok", None
         tokens = {"prompt_tokens": 0, "completion_tokens": 0, "cached_prompt_tokens": 0}
@@ -194,10 +243,10 @@ class OpenAICompatGateway:
                     model=model, messages=messages, temperature=0.7)  # type: ignore[arg-type]
                 out = resp.choices[0].message.content or ""
                 tokens = parse_usage_tokens(getattr(resp, "usage", None))
-        except (asyncio.TimeoutError, TimeoutError):
-            status, err = "timeout", "timeout"
+        except _RETRYABLE_ERRORS as e:
+            status, err = "timeout" if _is_timeout(e) else "error", str(e)
             raise
-        except Exception as e:  # 网络/5xx/其它
+        except Exception as e:  # 其它（参数错/鉴权失败等）：重试无意义
             status, err = "error", str(e)
             raise
         finally:
@@ -207,15 +256,24 @@ class OpenAICompatGateway:
                     prompt_tokens=tokens["prompt_tokens"],
                     completion_tokens=tokens["completion_tokens"],
                     cached_prompt_tokens=tokens["cached_prompt_tokens"],
-                    cost_micros=0, latency_ms=int((time.monotonic() - t0) * 1000),
+                    cost_micros=compute_cost_micros(tokens, price_in=price_in,
+                                                    price_out=price_out,
+                                                    price_cached_in=price_cached_in),
+                    latency_ms=int((time.monotonic() - t0) * 1000),
                     status=status,
                 )
         return out
 
     async def ask_json(self, *, base_url: str, api_key: str, model: str,
                        messages: list[dict[str, str]], purpose: str,
-                       match_id: int = 0) -> dict[str, Any]:
-        """带容错链的 JSON 请求。彻底失败抛最后一个异常。"""
+                       match_id: int = 0, price_in: float = 0.0, price_out: float = 0.0,
+                       price_cached_in: float | None = None) -> dict[str, Any]:
+        """带容错链的 JSON 请求。
+
+        链路（docs/engine.md）：网络/超时/限流/5xx 重试 ≤2（退避 2s/5s）；
+        坏 JSON 每个原始响应只做**一次**格式修复调用，修复仍不合法即抛（走上层中性兜底）。
+        彻底失败抛最后一个异常。
+        """
         last_err: Exception | None = None
         raw = ""
         for attempt, delay in enumerate((None, *self._retry_delays)):
@@ -224,10 +282,10 @@ class OpenAICompatGateway:
             try:
                 raw = await self._raw_complete(base_url=base_url, api_key=api_key,
                                                model=model, messages=messages, purpose=purpose,
-                                               match_id=match_id)
+                                               match_id=match_id, price_in=price_in,
+                                               price_out=price_out,
+                                               price_cached_in=price_cached_in)
                 return parse_agent_response(raw)
-            except (ConnectionError, asyncio.TimeoutError, TimeoutError) as e:
-                last_err = e  # 网络/超时：重试
             except ValueError as e:
                 # 坏 JSON：一次格式修复调用
                 fix_messages = [*messages,
@@ -238,9 +296,20 @@ class OpenAICompatGateway:
                 try:
                     raw2 = await self._raw_complete(base_url=base_url, api_key=api_key,
                                                     model=model, messages=fix_messages,
-                                                    purpose=f"{purpose}/fix", match_id=match_id)
+                                                    purpose=f"{purpose}/fix", match_id=match_id,
+                                                    price_in=price_in, price_out=price_out,
+                                                    price_cached_in=price_cached_in)
                     return parse_agent_response(raw2)
                 except ValueError as e2:
+                    # 修复也拿不到合法 JSON：按契约走兜底（不再消耗外层重试次数）
                     raise ValueError(f"格式修复仍失败: {e2}") from e2
+                except Exception as e2:
+                    if not _is_retryable(e2):
+                        raise
+                    last_err = e2  # 修复调用撞上网络/5xx：交给外层重试
+            except Exception as e:
+                if not _is_retryable(e):
+                    raise  # 参数错/鉴权失败等，重试没有意义
+                last_err = e
         assert last_err is not None
         raise last_err

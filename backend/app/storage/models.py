@@ -6,7 +6,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlmodel import Column, Field, SQLModel, Text
+from sqlmodel import Field, SQLModel, Text, UniqueConstraint
 
 
 def _now() -> datetime:
@@ -39,9 +39,16 @@ class MatchSeatRow(SQLModel, table=True):
     seat: int
     name: str = ""
     persona_id: str = ""
+    # 创建时固化的人设与接入快照（D10/D11）：历史对局不依赖后续配置变更即可复现
+    style: str = ""
+    strategy: str = ""
+    provider_id: str = ""
     base_url: str = ""
-    api_key_env: str = ""
+    api_key_env: str = ""  # 只存环境变量名，绝不存 key 本体
     model: str = ""
+    price_per_mtok_in: float = 0.0
+    price_per_mtok_out: float = 0.0
+    price_per_mtok_cached_in: float = 0.0
     role: str = ""  # 发牌后回填
 
 
@@ -58,7 +65,11 @@ class GameEventRow(SQLModel, table=True):
     vis_level: str = "public"
     vis_seats_json: str = Field(default="[]", sa_type=Text)
 
-    __table_args__ = ({"sqlite_autoincrement": True},)
+    __table_args__ = (
+        # 对局内 seq 唯一：跨进程/多实例写也不可能出现重复游标（引擎仍单写者）
+        UniqueConstraint("match_id", "seq", name="uq_game_event_match_seq"),
+        {"sqlite_autoincrement": True},
+    )
 
 
 class LlmCallRow(SQLModel, table=True):

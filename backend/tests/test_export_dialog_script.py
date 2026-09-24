@@ -13,12 +13,12 @@ SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 from export_dialog import export_dialog  # noqa: E402
 
-SEATS = [{"seat": i, "name": f"p{i}", "persona_id": "calm", "base_url": "",
-          "api_key_env": "", "model": "mock", "role": ""} for i in range(1, 7)]
+SEATS = [{"seat": i, "name": f"p{i}", "persona_id": "calm-analyst", "base_url": "",
+          "api_key_env": "", "model": "mock", "role": ""} for i in range(1, 10)]
 
 
-async def _create_match(repo, board: str = "p6-classic") -> int:
-    m = await repo.create_match(game_type="werewolf", ruleset="minimal",
+async def _create_match(repo, board: str = "p9-standard") -> int:
+    m = await repo.create_match(game_type="werewolf", ruleset="standard-9",
                                 board={"id": board}, rng_seed=1, seats=SEATS)
     return m["id"]
 

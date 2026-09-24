@@ -50,9 +50,9 @@ class TestConfigWiring:
     async def test_真实座位_key解析进内存_不落库(self, client, tmp_path):
         seats = [{"seat": i, "persona_id": "direct", "model": "mimo-flash",
                   "base_url": "https://x.example/v1", "api_key_env": "MIMO_API_KEY",
-                  "name": f"p{i}"} for i in range(1, 7)]
+                  "name": f"p{i}"} for i in range(1, 10)]
         resp = await client.post("/api/matches", json={
-            "game_type": "werewolf", "board": {"id": "p6-classic"}, "seats": seats})
+            "game_type": "werewolf", "board": {"id": "p9-standard"}, "seats": seats})
         assert resp.status_code == 200, resp.text
         mid = resp.json()["id"]
         m = (await client.get(f"/api/matches/{mid}")).json()
@@ -80,10 +80,10 @@ class TestPersonaExpansion:
         # personas 只有 direct，先给它绑 provider 覆盖场景放到独立 fixture；这里验证
         # 绑定了 provider 的 persona 被座位引用后座位 model/base_url/api_key_env 被展开
         seats = [{"seat": i, "persona_id": "direct", "name": f"p{i}"}
-                 for i in range(1, 7)]
+                 for i in range(1, 10)]
         # direct 未绑定 → 座位无 model 字段时默认 mock，行为不变
         resp = await client.post("/api/matches", json={
-            "game_type": "werewolf", "board": {"id": "p6-classic"}, "seats": seats})
+            "game_type": "werewolf", "board": {"id": "p9-standard"}, "seats": seats})
         assert resp.status_code == 200, resp.text
         mid = resp.json()["id"]
         m = (await client.get(f"/api/matches/{mid}")).json()
@@ -92,6 +92,7 @@ class TestPersonaExpansion:
     async def test_persona绑定后座位展开provider信息(self, tmp_path, monkeypatch):
         import json as _json
 
+        monkeypatch.setenv("MIMO_API_KEY", "tp-test")  # 真实接入必须能取到 key（M11）
         data_dir = tmp_path / "d2"
         data_dir.mkdir()
         (data_dir / "providers.json").write_text(_json.dumps({
@@ -114,9 +115,9 @@ class TestPersonaExpansion:
                                          base_url="http://t") as c:
                 seats = [{"seat": i, "persona_id": "pro-player" if i <= 3 else "flash-player",
                           "name": f"p{i}"}
-                         for i in range(1, 7)]
+                         for i in range(1, 10)]
                 resp = await c.post("/api/matches", json={
-                    "game_type": "werewolf", "board": {"id": "p6-classic"},
+                    "game_type": "werewolf", "board": {"id": "p9-standard"},
                     "seats": seats})
                 assert resp.status_code == 200, resp.text
                 mid = resp.json()["id"]
@@ -148,9 +149,9 @@ class TestPersonaExpansion:
             async with httpx.AsyncClient(transport=transport,
                                          base_url="http://t") as c:
                 seats = [{"seat": i, "persona_id": "pp", "model": "mock", "name": f"p{i}"}
-                         for i in range(1, 7)]
+                         for i in range(1, 10)]
                 resp = await c.post("/api/matches", json={
-                    "game_type": "werewolf", "board": {"id": "p6-classic"},
+                    "game_type": "werewolf", "board": {"id": "p9-standard"},
                     "seats": seats})
                 assert resp.status_code == 200, resp.text
                 mid = resp.json()["id"]
@@ -166,10 +167,10 @@ class TestPersonaExpansion:
              "basis": "random", "provider_id": "mimo"},
         ]
         seats = [{"seat": i, "persona_id": "direct", "model": "mock",
-                  "name": f"p{i}"} for i in range(1, 7)]
+                  "name": f"p{i}"} for i in range(1, 10)]
         resp = await client.post("/api/matches", json={
             "game_type": "werewolf",
-            "board": {"id": "p6-classic", "model_assignments": assignments},
+            "board": {"id": "p9-standard", "model_assignments": assignments},
             "seats": seats})
         assert resp.status_code == 200, resp.text
         mid = resp.json()["id"]

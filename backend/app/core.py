@@ -33,9 +33,9 @@ class Event:
 
 
 def filtered_view(event: Event, view: str) -> Event | None:
-    """按视角过滤事件：出站（REST/SSE）统一走这里。
+    """按视角过滤事件：出站（REST/SSE/导出）统一走这里（支柱 3 的唯一过滤点）。
 
-    view="immersive" 只看 public；view="god" 全量。
+    view="immersive" 只放行 public；view="god" 全量放行（含 seat/god 级）。
     """
     if view == "god":
         return event
@@ -48,10 +48,11 @@ def filtered_view(event: Event, view: str) -> Event | None:
 class ActionRequest:
     """向 agent 请求的动作描述（action_schema 产出）。"""
 
-    action_type: str  # speech / vote / kill / check / save / poison / guard / shoot / badge / pass
+    action_type: str  # speech / vote / kill / check / save / poison / shoot / badge / register / pass
     candidates: list[int] = field(default_factory=list)  # 合法目标座位
     prompt: str = ""  # 步骤任务指令
-    extra: dict[str, Any] = field(default_factory=dict)  # 复合动作的附加语义
+    extra: dict[str, Any] = field(default_factory=dict)  # 复合动作的附加语义（结构化）
+    prompt_extra: str = ""  # 附加语义的 prompt 文本（由游戏插件渲染，落指令层）
 
 
 @dataclass

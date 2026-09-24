@@ -1,8 +1,8 @@
 """命令行跑一局：--mock 用 MockLLM 确定性整局；不带 --mock 走真实 API（e2e 用）。
 
 用法：
-    python scripts/run_match.py --mock --board p6-classic --seed 42
-    python scripts/run_match.py --board p12-standard   # 需配置座位接入与 key 环境变量
+    python scripts/run_match.py --mock --seed 42
+    python scripts/run_match.py --board p9-standard --seed 7
 """
 
 from __future__ import annotations
@@ -16,12 +16,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.engine.runner import MatchRunner  # noqa: E402
-from app.games.registry import PRESETS, resolve_board  # noqa: E402
+from app.games.registry import DEFAULT_BOARD_ID, PRESETS, resolve_board  # noqa: E402
 from app.llm.gateway import MockLLM  # noqa: E402
 from app.storage.repo import SqliteMatchRepository  # noqa: E402
 
 
-async def run_mock(board_id: str, seed: int, n_players: int) -> int:
+async def run_mock(board_id: str, seed: int) -> int:
     game, spec = resolve_board({"id": board_id})
     repo = SqliteMatchRepository()
     await repo.init()
@@ -36,7 +36,7 @@ async def run_mock(board_id: str, seed: int, n_players: int) -> int:
                  for s, r in roles.items()}
     llm = MockLLM(script=[], fail_rate=0.0)
     runner = MatchRunner(match_id=m["id"], game=game, spec=spec, repo=repo,
-                         gateway=llm, seed=seed, seat_meta=seat_meta)
+                         gateway=llm, seed=seed, seat_meta=seat_meta, board_id=board_id)
     result = await runner.run()
     events = await repo.list_events(m["id"], after_seq=0, view="god")
     seqs = [e.seq for e in events]
@@ -54,11 +54,11 @@ async def run_mock(board_id: str, seed: int, n_players: int) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(description="跑一局狼人杀")
     ap.add_argument("--mock", action="store_true", help="MockLLM 确定性跑局")
-    ap.add_argument("--board", default="p6-classic", choices=sorted(PRESETS))
+    ap.add_argument("--board", default=DEFAULT_BOARD_ID, choices=sorted(PRESETS))
     ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args()
     if args.mock:
-        return asyncio.run(run_mock(args.board, args.seed, 0))
+        return asyncio.run(run_mock(args.board, args.seed))
     print("真实 API 跑局请用 scripts/e2e_real.py（需要配置 providers 与 key）")
     return 0
 

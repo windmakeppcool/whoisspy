@@ -16,7 +16,11 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from app.config.defaults import DEFAULT_PERSONAS, DEFAULT_PROVIDERS
-from app.games.registry import PRESETS as DEFAULT_PRESETS
+from app.games.registry import PRESETS as _REGISTRY_PRESETS
+
+# 快照拷贝：apply_boards 会 clear/update 注册表里的 PRESETS（同一 dict 对象），
+# 若直接别名引用，内置默认会被一起清空，apply_default_boards 就再也恢复不回来。
+DEFAULT_PRESETS: dict[str, dict[str, Any]] = {k: dict(v) for k, v in _REGISTRY_PRESETS.items()}
 
 # 默认数据目录：backend/data（相对本文件：app/config → 上两级）
 DEFAULT_DATA_DIR = Path(__file__).resolve().parents[2] / "data"
@@ -80,7 +84,7 @@ class ConfigBundle:
     boards: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
-def _load_json(path: Path, model_cls: type[BaseModel], data_dir: Path) -> dict[str, Any]:
+def _load_json(path: Path, model_cls: type[BaseModel]) -> dict[str, Any]:
     """读取并校验单个 JSON 文件；解析/校验失败抛 ValueError（含文件名，拒绝启动）。"""
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
@@ -124,13 +128,13 @@ def load_config(data_dir: Path | str | None = None) -> ConfigBundle:
     )
     fp = d / "providers.json"
     if fp.exists():
-        bundle.providers = list(_load_json(fp, ProvidersFile, d)["providers"])
+        bundle.providers = list(_load_json(fp, ProvidersFile)["providers"])
     fg = d / "personas.json"
     if fg.exists():
-        bundle.personas = list(_load_json(fg, PersonasFile, d)["personas"])
+        bundle.personas = list(_load_json(fg, PersonasFile)["personas"])
     fb = d / "boards.json"
     if fb.exists():
-        parsed = _load_json(fb, BoardsFile, d)
+        parsed = _load_json(fb, BoardsFile)
         bundle.boards = {b["id"]: b for b in parsed["boards"]}
     _validate_persona_bindings(bundle.personas, bundle.providers)
     return bundle
