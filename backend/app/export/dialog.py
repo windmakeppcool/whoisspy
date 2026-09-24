@@ -79,7 +79,7 @@ def _render_entry(event: Event) -> dict[str, Any] | None:
         return {"speaker": None, "type": "system",
                 "text": f"预言家查验 {_seat_str(p.get('target'))} 为 {verdict_cn}"}
     if etype == "night.witch_action":
-        action = p.get("action", "")
+        action = p.get("act", p.get("action", ""))
         if action == "save":
             return {"speaker": None, "type": "system", "text": "女巫使用解药"}
         if action == "poison":
@@ -87,10 +87,10 @@ def _render_entry(event: Event) -> dict[str, Any] | None:
                     "text": f"女巫使用毒药毒杀 {_seat_str(p.get('target'))}"}
         return {"speaker": None, "type": "system", "text": "女巫不用药"}
     if etype == "night.resolved":
-        dead = p.get("dead", [])
-        if not dead:
+        deaths = p.get("deaths") or {k: "kill" for k in (p.get("dead") or [])}
+        if not deaths:
             return {"speaker": None, "type": "system", "text": "昨夜平安夜"}
-        seats = "、".join(_seat_str(s) for s in dead)
+        seats = "、".join(_seat_str(int(s)) for s in deaths)
         return {"speaker": None, "type": "system", "text": f"昨夜死亡：{seats}"}
 
     # 投票

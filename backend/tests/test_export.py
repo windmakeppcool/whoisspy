@@ -62,6 +62,28 @@ class TestRenderDialog:
         assert entry["speaker"] == "1号"
         assert entry["text"] == "我刀5号"
 
+    def test_夜晚结算读取deaths键_真实payload(self):
+        """runner 实际产出 deaths={seat: cause}；键名不匹配会渲染成'平安夜'（bug 回归）。"""
+        events = [
+            make_event("night.resolved", {"day": 1, "deaths": {"1": "knife"}},
+                       day=1, phase="night_resolve"),
+        ]
+        result = render_dialog(match_id=1, game_type="werewolf", events=events)
+        texts = [e["text"] for e in result["segments"][0]["entries"]]
+        assert any("死亡" in t and "1号" in t for t in texts)
+        assert not any("平安夜" in t for t in texts)
+
+    def test_女巫动作读取act键_真实payload(self):
+        """runner 实际产出 act=save/poison；读错键会把用解药渲染成'不用药'（bug 回归）。"""
+        events = [
+            make_event("night.witch_action", {"seat": 8, "act": "save", "target": 0},
+                       day=1, phase="witch_turn"),
+        ]
+        result = render_dialog(match_id=1, game_type="werewolf", events=events)
+        texts = [e["text"] for e in result["segments"][0]["entries"]]
+        assert any("解药" in t for t in texts)
+        assert not any("不用药" in t for t in texts)
+
     def test_投票事件渲染(self):
         events = [
             make_event("vote.cast", {"seat": 2, "target": 5}, day=1, phase="day_vote"),
