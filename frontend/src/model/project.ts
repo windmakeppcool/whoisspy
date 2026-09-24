@@ -42,7 +42,8 @@ export interface MatchVM {
 
 const PHASE_LABELS: Record<string, string> = {
   night_start: '夜幕降临', wolf_meeting: '狼队密谋', seer_check: '预言家行动',
-  witch_turn: '女巫行动', night_resolve: '夜间结算', day_speech: '白天发言',
+  witch_turn: '女巫行动', sheriff_elect: '警长竞选', night_resolve: '夜间结算',
+  speech_order: '发言定序', day_speech: '白天发言',
   day_vote: '放逐投票', exile_resolve: '放逐结算',
 }
 
@@ -136,6 +137,15 @@ export function applyEvent(vm: MatchVM, ev: GameEvent, godView: boolean): MatchV
         if (v) tally[v] = (tally[v] ?? 0) + 1
       }
       const exile = p.exiled ? Number(p.exiled) : undefined
+      // scope=sheriff 是警长选举票，不是放逐票：只报结果、绝不判死（D27）
+      if (p.scope === 'sheriff') {
+        next.feed.push({
+          kind: 'system',
+          text: exile ? `🏅 警长投票：${exile}号得票最高` : '🏅 警长投票平票',
+        })
+        next.vote = { title: String(p.title ?? '警长投票'), tally, exile, tie: Boolean(p.tie) }
+        break
+      }
       if (exile) {
         const s = next.seats.find(x => x.seat === exile)
         if (s) s.alive = false
@@ -144,6 +154,13 @@ export function applyEvent(vm: MatchVM, ev: GameEvent, godView: boolean): MatchV
         next.feed.push({ kind: 'system', text: '🕊️ 平票 —— 平安日，无人出局' })
       }
       next.vote = { title: String(p.title ?? '放逐投票'), tally, exile, tie: Boolean(p.tie) }
+      break
+    }
+    case 'day.speech_order': {
+      const order = (p.order ?? []) as number[]
+      if (order.length) {
+        next.feed.push({ kind: 'system', text: `🗣️ 发言顺序：${order.join(' → ')}号` })
+      }
       break
     }
     case 'gun.shoot': {

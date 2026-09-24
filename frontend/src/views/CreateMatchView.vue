@@ -8,7 +8,7 @@ import { boardLabel } from '../model/types'
 
 const catalog = useCatalogStore()
 const router = useRouter()
-const boardId = ref('p6-classic')
+const boardId = ref('p9-standard')  // 单板收敛（D23）：当前只有标准 9 人局
 const personaId = ref('calm-analyst')
 const model = ref('mock')
 const submitting = ref(false)
@@ -18,7 +18,7 @@ onMounted(() => catalog.refresh())
 
 const seatCount = computed<number>(() => {
   const b = catalog.boards.find(x => x.id === boardId.value)
-  return b ? Object.values(b.roles).reduce((a: number, c: number) => a + c, 0) : 6
+  return b ? Object.values(b.roles).reduce((a: number, c: number) => a + c, 0) : 9
 })
 
 async function submit() {

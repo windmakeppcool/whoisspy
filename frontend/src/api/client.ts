@@ -16,7 +16,16 @@ export const api = {
   async createMatch(body: {
     game_type: string
     board: { id: string }
-    seats: Array<{ seat: number; persona_id: string; model: string; base_url?: string; api_key_env?: string }>
+    // provider_ref：引用 providers.json 预设（推荐，服务端展开为 base_url/api_key_env/model）
+    // 也可显式给 base_url + api_key_env + model（base_url 必须在 providers.json 白名单内）
+    seats: Array<{
+      seat: number
+      persona_id: string
+      model?: string
+      provider_ref?: string
+      base_url?: string
+      api_key_env?: string
+    }>
   }): Promise<MatchInfo> {
     const resp = await fetch(`${BASE}/api/matches`, {
       method: 'POST',

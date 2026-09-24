@@ -58,6 +58,21 @@ describe('project', () => {
     expect(vm.label).toContain('狼人阵营')
   })
 
+  it('scope=sheriff 的选举票不判死（D27 回归）', () => {
+    let vm = emptyVM(match)
+    vm = applyEvent(vm, ev(1, 'vote.resolved',
+      { votes: { 2: 1, 3: 1 }, scope: 'sheriff', title: '警长投票', exiled: 1, tie: false }), false)
+    expect(vm.seats.every(s => s.alive)).toBe(true)   // 当选 ≠ 被放逐
+    expect(vm.feed.some(f => f.text.includes('警长投票'))).toBe(true)
+  })
+
+  it('day.speech_order 出顺序旁白', () => {
+    let vm = emptyVM(match)
+    vm = applyEvent(vm, ev(1, 'day.speech_order',
+      { order: [3, 4, 5, 1, 2], start: 3, decided_by: 'sheriff' }), false)
+    expect(vm.feed.some(f => f.text.includes('发言顺序'))).toBe(true)
+  })
+
   it('projectAll 全量回放与增量一致', () => {
     const events = [
       ev(1, 'phase.started', { phase: 'night_start', day: 1 }),
