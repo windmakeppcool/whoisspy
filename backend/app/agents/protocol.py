@@ -116,8 +116,9 @@ def build_user_prompt(
     parts.append(
         f"## 当前任务\n{request.prompt}{candidates}\n"
         "请只输出一个 JSON 对象（不要多余文字），结构：\n"
-        '{"speech": "你的公开发言（如本步骤无发言要求则为空字符串）", '
-        '"monologue": "你的内心独白（真实想法，观众上帝视角可见）", '
+        # 字段顺序即生成顺序：先写内心盘算、再写对外说法，言行对照（D6）才立得住
+        '{"monologue": "你的内心独白（真实想法，观众上帝视角可见）", '
+        '"speech": "你的公开发言（如本步骤无发言要求则为空字符串）", '
         '"action": {"type": "' + request.action_type + '", ...} 或 null}'
     )
     return "\n\n".join(parts)

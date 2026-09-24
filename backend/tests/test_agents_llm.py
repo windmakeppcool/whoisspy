@@ -12,17 +12,19 @@ from app.core import ActionRequest, Event, VisMeta
 
 class TestParseAgentResponse:
     def test_正常json解析(self):
-        raw = json.dumps({"speech": "大家好", "monologue": "稳住", "action": {"type": "vote", "target": 3}})
+        raw = json.dumps({"monologue": "稳住", "speech": "大家好",
+                          "action": {"type": "vote", "target": 3}})
         res = parse_agent_response(raw)
-        assert res == {"speech": "大家好", "monologue": "稳住", "action": {"type": "vote", "target": 3}}
+        assert res == {"monologue": "稳住", "speech": "大家好",
+                       "action": {"type": "vote", "target": 3}}
 
     def test_裸json容忍markdown围栏(self):
-        raw = '```json\n{"speech": "hi", "monologue": "", "action": null}\n```'
+        raw = '```json\n{"monologue": "", "speech": "hi", "action": null}\n```'
         res = parse_agent_response(raw)
         assert res["speech"] == "hi"
 
     def test_前后杂讯提取json对象(self):
-        raw = '我的回答如下：{"speech": "投3", "monologue": "x", "action": {"type": "vote", "target": 3}} 完毕'
+        raw = '我的回答如下：{"monologue": "x", "speech": "投3", "action": {"type": "vote", "target": 3}} 完毕'
         res = parse_agent_response(raw)
         assert res["action"]["target"] == 3
 
@@ -49,7 +51,7 @@ class TestMockLLM:
             base_url="", api_key="", model="",
             messages=[{"role": "user", "content":
                        '你是 3 号座位。\n## 当前任务\n投票。合法目标座位：[1, 2, 4]。'
-                       '{"speech": "...", "action": {"type": "vote", ...}}'}],
+                       '{"monologue": "...", "speech": "...", "action": {"type": "vote", ...}}'}],
             purpose="vote")
         obj = json.loads(r2)
         assert obj["speech"]  # 非空发言
@@ -77,7 +79,7 @@ class TestGatewayRetry:
                 calls.append(messages)
                 if len(calls) == 1:
                     return "垃圾输出{{"
-                return json.dumps({"speech": "ok", "monologue": "", "action": None})
+                return json.dumps({"monologue": "", "speech": "ok", "action": None})
 
         gw = OpenAICompatGateway(inner=FlakyInner(), usage_sink=None)
         res = await gw.ask_json(base_url="", api_key="", model="m", messages=[],
@@ -93,7 +95,7 @@ class TestGatewayRetry:
                 attempts["n"] += 1
                 if attempts["n"] < 3:
                     raise ConnectionError("网络抖动")
-                return json.dumps({"speech": "ok", "monologue": "", "action": None})
+                return json.dumps({"monologue": "", "speech": "ok", "action": None})
 
         gw = OpenAICompatGateway(inner=NetFlaky(), usage_sink=None, retry_delays=[0, 0])
         res = await gw.ask_json(base_url="", api_key="", model="m", messages=[],
@@ -120,7 +122,7 @@ class TestGatewayRetry:
 
         class Ok:
             async def complete(self, **kw):
-                return json.dumps({"speech": "ok", "monologue": "", "action": None})
+                return json.dumps({"monologue": "", "speech": "ok", "action": None})
 
         gw = OpenAICompatGateway(inner=Ok(), usage_sink=Sink())
         await gw.ask_json(base_url="", api_key="", model="gpt-x", messages=[{"role": "user", "content": "hi"}],
@@ -222,7 +224,7 @@ class TestRuleSlicesByStep:
             async def ask_json(self, *, base_url, api_key, model, messages,
                                purpose, match_id=0):
                 captured.append(messages[0]["content"])
-                return {"speech": "", "monologue": "", "action": None}
+                return {"monologue": "", "speech": "", "action": None}
 
         runner = MatchRunner(match_id=1, game=game, spec=spec, repo=None, gateway=Spy(),
                              seed=1, seat_meta={1: {"model": "mock", "style": "",
@@ -248,7 +250,7 @@ class TestRuleSlicesByStep:
             async def ask_json(self, *, base_url, api_key, model, messages,
                                purpose, match_id=0):
                 captured.append(messages[0]["content"])
-                return {"speech": "", "monologue": "", "action": None}
+                return {"monologue": "", "speech": "", "action": None}
 
         runner = MatchRunner(match_id=1, game=game, spec=spec, repo=None, gateway=Spy(),
                              seed=1, seat_meta={1: {"model": "mock", "style": "",
@@ -263,6 +265,43 @@ class TestRuleSlicesByStep:
         p = captured[0]
         assert p.index("MEM-MARK") < p.index("【女巫规则】")
         assert p.index("【女巫规则】") < p.index("是否用药")
+
+
+class TestOutputSchemaOrder:
+    """输出 schema 的字段顺序 = 模型生成顺序：先内心盘算，后对外说法。
+
+    倒置会让 monologue 沦为对发言的事后合理化，言行对照（D6）就此失效。
+    """
+
+    @staticmethod
+    def _schema(p: str) -> str:
+        """截取指令层的 JSON schema 片段（前面各层也可能含 speech 字样，须隔离）。"""
+        return p[p.index("请只输出一个 JSON"):]
+
+    def test_内心独白先于公开发言(self):
+        req = ActionRequest(action_type="speech", prompt="请发言")
+        p = build_user_prompt(rule_slices={}, identity="I", style="", strategy="",
+                              memory="", request=req)
+        schema = self._schema(p)
+        assert schema.index('"monologue"') < schema.index('"speech"')
+
+    def test_动作字段收尾(self):
+        req = ActionRequest(action_type="vote", prompt="请投票")
+        p = build_user_prompt(rule_slices={}, identity="I", style="", strategy="",
+                              memory="", request=req)
+        schema = self._schema(p)
+        assert schema.index('"speech"') < schema.index('"action"')
+
+    def test_三段缺一不可(self):
+        req = ActionRequest(action_type="vote", prompt="请投票")
+        p = build_user_prompt(rule_slices={}, identity="I", style="", strategy="",
+                              memory="", request=req)
+        schema = self._schema(p)
+        for key in ('"monologue"', '"speech"', '"action"'):
+            assert key in schema
+
+
+class TestPromptAssembly:
     def test_六层顺序拼装(self):
         req = ActionRequest(action_type="vote", candidates=[1, 2], prompt="请投票")
         p = build_user_prompt(

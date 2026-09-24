@@ -156,3 +156,10 @@
   3. **层序按缓存语义重排**：`_rule_partition(step)` 以 `slices_for(空 step)` 为基线切出稳定段，其余归本步易变段；`build_user_prompt` 新增 `step_slices`，把本步切片从第 1 层挪进第 6 层（指令层）。契约变为「稳定段（全局规则/身份/人设/策略）→ 追加式记忆 → 易变段（本步切片 + 指令）」，并写入 [agents-and-llm.md](agents-and-llm.md) 作为红线（记忆层必须 append-only，禁止状态表/回填）。
 - **备选**：按 purpose 推导 step kind——否决，与 `Step.kind` 不同名且无法一一映射；全量规则切片一次性塞进第 1 层——否决，浪费 token 且违背 D12 的按步切片意图（稳定前缀只需够长越过端点最小缓存门槛）；改 `GameDefinition.slices_for` 契约返回 (稳定, 易变)——否决，缓存分层是 prompt 组装职责，不该泄漏进游戏插件契约；只记 token 总量不做缓存区分——否决，成本失真且优化无据可依。
 - **影响**：D12 真正生效（每步注入对应规则切片）；`GET /api/matches/{id}/usage` 多出 `cached_prompt_tokens`/`cache_hit_rate`，可实测 prompt 结构的缓存收益；`build_user_prompt` 增可选参数 `step_slices`（缺省不注入，向后兼容）；[api.md](api.md)、[events-storage.md](events-storage.md) 同步。
+
+## D22 输出 schema 字段顺序：monologue 先于 speech（2026-09-24）
+
+- **背景**：D6 确定 monologue 与 speech 同一次调用产出（言行对照是节目效果核心），但 schema 里 `speech` 排在 `monologue` 之前。JSON 字段顺序即自回归模型的生成顺序，于是模型**先写公开发言、再写内心独白**，独白容易沦为对发言的事后合理化；叠加模型的自我一致性倾向，「表里不一」这个核心卖点会被写自洽而抹平。
+- **决策**：输出 JSON 协议字段顺序改为 `monologue` → `speech` → `action`，并同步所有示范协议的位置：`build_user_prompt` 指令层 schema、`parse_agent_response` 的容错格式修复提示、`MockLLM._heuristic_reply` 返回、测试与文档中的协议样例。新增 `TestOutputSchemaOrder` 锁死该顺序（断言 schema 片段内 `'"monologue"'` 先于 `'"speech"'`）。
+- **备选**：拆成两次独立调用分别产独白与发言——否决，成本与延迟翻倍且第二跳无法共享前缀缓存，而单次调用 + 顺序调整已能拿到主要收益；只改文案强调「先想后说」而不调字段顺序——否决，文案约束弱于生成顺序约束；保持 speech 在前——否决，与 D6 的言行对照目标相悖。
+- **影响**：仍是单次调用输出三段（不变），不改 `parse_agent_response` 的 key 寻址解析（顺序无关，向后兼容历史响应）；[agents-and-llm.md](agents-and-llm.md) 协议小节同步。

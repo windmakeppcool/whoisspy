@@ -147,8 +147,8 @@ def _heuristic_reply(messages: list[dict[str, str]], purpose: str,
         action = {"type": atype, "target": 0}
 
     return {
-        "speech": speech,
         "monologue": f"（内心）候选 {others or cands or '无'}，选 {target}。",
+        "speech": speech,
         "action": action,
     }
 
@@ -234,7 +234,7 @@ class OpenAICompatGateway:
                                 {"role": "assistant", "content": raw},
                                 {"role": "user", "content":
                                  "你的上一条输出不是合法 JSON。请只输出一个 JSON 对象，"
-                                 "结构：{\"speech\": str, \"monologue\": str, \"action\": dict|null}。"}]
+                                 "结构：{\"monologue\": str, \"speech\": str, \"action\": dict|null}。"}]
                 try:
                     raw2 = await self._raw_complete(base_url=base_url, api_key=api_key,
                                                     model=model, messages=fix_messages,

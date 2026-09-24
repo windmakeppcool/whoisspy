@@ -43,7 +43,7 @@ SEAT_META = {i: {"model": "mock", "style": "", "strategy": "", "role": "villager
 
 def _scripted_speech(seat: int, text: str, target: int | None = None) -> dict:
     action = {"type": "vote", "target": target} if target else None
-    return {"speech": text, "monologue": f"{seat}号内心", "action": action}
+    return {"monologue": f"{seat}号内心", "speech": text, "action": action}
 
 
 class FakeGame:
