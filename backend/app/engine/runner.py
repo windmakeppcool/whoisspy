@@ -111,13 +111,14 @@ class MatchRunner:
         """该座位可见的事件历史投影（docs/agents-and-llm.md 记忆层）。
 
         遍历本局全量事件，按各事件的 VisMeta 过滤：public 全可见、seat 仅成员、
-        god 不可见；发言类排除本人（自己说过的话无需再喂）。
+        god 不可见。自己的发言也保留：调用无状态（每次全新 prompt），
+        模型必须靠记忆层记住自己说过什么（言行一致）。
         """
         lines: list[str] = []
         for ev in self._events:
             if not self._visible_to(ev.vis, seat):
                 continue
-            line = self._memory_line(ev, seat)
+            line = self._memory_line(ev)
             if line:
                 lines.append(line)
         return lines
@@ -130,13 +131,11 @@ class MatchRunner:
             return seat in (vis.seats or [])
         return False  # god：仅上帝视角
 
-    def _memory_line(self, ev: Event, seat: int) -> str | None:
-        """单个事件 → 记忆文本行（无信息量或本人发言返回 None）。"""
+    def _memory_line(self, ev: Event) -> str | None:
+        """单个事件 → 记忆文本行（无信息量返回 None）。"""
         t, p = ev.type, ev.payload
         if t in ("player.speech", "channel.message", "player.last_words"):
             speaker = p.get("seat")
-            if speaker == seat:
-                return None
             text = p.get("text", "")
             if t == "player.last_words":
                 text = f"（遗言）{text}"

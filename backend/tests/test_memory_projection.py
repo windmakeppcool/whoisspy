@@ -36,14 +36,17 @@ def _mem(runner: MatchRunner, seat: int) -> list[str]:
 
 
 class TestMemoryProjection:
-    def test_公开发言全部可见且排除自己(self, repo):
+    def test_公开发言全部可见(self, repo):
         runner = _mk_runner(repo)
         runner._events = [
             _ev("player.speech", {"seat": 1, "text": "大家好"}, VisMeta(level="public")),
             _ev("player.speech", {"seat": 2, "text": "我是好人"}, VisMeta(level="public")),
         ]
-        assert _mem(runner, 1) == ['<speech seat="2">我是好人</speech>']
-        assert _mem(runner, 2) == ['<speech seat="1">大家好</speech>']
+        # 无状态调用：自己的发言也要进记忆，否则模型会忘记自己说过什么
+        assert _mem(runner, 1) == ['<speech seat="1">大家好</speech>',
+                                   '<speech seat="2">我是好人</speech>']
+        assert _mem(runner, 2) == ['<speech seat="1">大家好</speech>',
+                                   '<speech seat="2">我是好人</speech>']
         assert _mem(runner, 3) == ['<speech seat="1">大家好</speech>',
                                    '<speech seat="2">我是好人</speech>']
 
@@ -55,9 +58,11 @@ class TestMemoryProjection:
             _ev("channel.message", {"seat": 2, "text": "刀4更稳"},
                 VisMeta(level="seat", seats=[1, 2])),
         ]
-        # 狼队成员互看对方发言；自己的发言无需再喂；外人不可见
-        assert _mem(runner, 1) == ['<speech seat="2">刀4更稳</speech>']
-        assert _mem(runner, 2) == ['<speech seat="1">今晚刀3</speech>']
+        # 狼队成员互相可见（含自己的发言：无状态调用需记住自己定的刀）；外人不可见
+        assert _mem(runner, 1) == ['<speech seat="1">今晚刀3</speech>',
+                                   '<speech seat="2">刀4更稳</speech>']
+        assert _mem(runner, 2) == ['<speech seat="1">今晚刀3</speech>',
+                                   '<speech seat="2">刀4更稳</speech>']
         assert _mem(runner, 3) == []
 
     def test_god级事件对所有人不可见(self, repo):
