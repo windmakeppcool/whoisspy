@@ -99,11 +99,6 @@ def test_座次表存活与死亡状态可区分():
         {"seat": 2, "role": "wolf", "alive": False},
     ])
     output = render_seats(vm, god_view=True)
-    lines = output
-    # 存活与死亡的标记必须不同且都可 GBK 编码
-    assert ("1" + ALIVE_MARK) in lines
-    assert ("2" + DEAD_MARK) in lines
-
-
-ALIVE_MARK = "生"
-DEAD_MARK = "殁"
+    # 用户指定标记：[存活] / [死亡]
+    assert "1[存活]" in output
+    assert "2[死亡]" in output

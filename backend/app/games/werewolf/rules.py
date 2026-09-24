@@ -38,7 +38,7 @@ def _check_role_sum(roles: dict[str, int]) -> None:
 
 
 def validate_board_minimal(cfg: dict[str, Any]) -> BoardSpec:
-    """minimal：6≤n≤10，狼 1~⌈n/3⌉，预 0~2，民≥1，仅允许狼/预/民三种角色。"""
+    """minimal：6≤n≤10，狼 1~ceil(n/3)，预 0~2，民≥1，仅允许狼/预/民三种角色。"""
     roles = dict(cfg.get("roles") or {})
     _check_role_sum(roles)
     unknown = set(roles) - {ROLE_WEREWOLF, ROLE_SEER, ROLE_VILLAGER}
