@@ -146,3 +146,13 @@
   4. [games/werewolf.md](games/werewolf.md)：竞选小节移至白天流程之前（标注夜末、死讯前）；状态机图竞选步骤移到 DAWN 前；待确认项 5 标记已确认。
 - **备选**：保持 D20（发言后竞选）——否决，用户拍板回滚且该实现有重复执行缺陷；竞选放在死讯后、发言前——否决，用户明确要求死讯前。
 - **影响**：D20 被本条推翻（条目保留作历史）；引擎/测试/文档三方与「竞选在死讯前」对齐；standard-9/standard-12 共用同一时序（`state.extra["standard"]` 驱动）。
+
+## D21 规则切片按步骤注入 + 前缀缓存可观测（2026-09-24）
+
+- **背景**：审查 prompt 结构时发现两处问题。其一，`MatchRunner._ask` 取规则切片传的是占位 `Step(kind="")`，`slices_for` 对空 kind 只返回 `["overview"]`——D12「按步骤注入角色规则」从未生效，模型全程只见过 overview，狼队频道/预言家/女巫/守卫等切片一次都没进过 prompt。其二，前缀缓存命中率完全无法观测：`llm_call` 只记 prompt/completion 总量，不区分缓存命中，`cost_micros` 因此高估，「结构是否吃满前缀缓存」无从验证。修复其一会引入新风险：本步切片若照原第 1 层位置注入，随步骤切换变化会作废整段记忆前缀。
+- **决策**：
+  1. **计量先行**：`parse_usage_tokens` 归一各家端点 usage（OpenAI 系 `prompt_tokens_details.cached_tokens`、DeepSeek 系 `prompt_cache_hit_tokens`，对象/dict 形态皆认），`llm_call` 增列 `cached_prompt_tokens`，`summarize` 输出 `cached_prompt_tokens` + `cache_hit_rate`（total 与 by_model 两级）。旧库由 `SqliteUsageRepository.init` 幂等补列（`_MIGRATE_COLUMNS` 固定 DDL，独立事务吞 duplicate column）。
+  2. **`_ask` 显式收 `step`**：`purpose` 与 `Step.kind` 不可互推（ballot 的 purpose 是 "vote"、solo_action 是 "action"、serial_speech 是 "speech"/"sheriff_speech"），故 12 个调用点各自传真实 `Step`；`_speech_round` 同步透传。
+  3. **层序按缓存语义重排**：`_rule_partition(step)` 以 `slices_for(空 step)` 为基线切出稳定段，其余归本步易变段；`build_user_prompt` 新增 `step_slices`，把本步切片从第 1 层挪进第 6 层（指令层）。契约变为「稳定段（全局规则/身份/人设/策略）→ 追加式记忆 → 易变段（本步切片 + 指令）」，并写入 [agents-and-llm.md](agents-and-llm.md) 作为红线（记忆层必须 append-only，禁止状态表/回填）。
+- **备选**：按 purpose 推导 step kind——否决，与 `Step.kind` 不同名且无法一一映射；全量规则切片一次性塞进第 1 层——否决，浪费 token 且违背 D12 的按步切片意图（稳定前缀只需够长越过端点最小缓存门槛）；改 `GameDefinition.slices_for` 契约返回 (稳定, 易变)——否决，缓存分层是 prompt 组装职责，不该泄漏进游戏插件契约；只记 token 总量不做缓存区分——否决，成本失真且优化无据可依。
+- **影响**：D12 真正生效（每步注入对应规则切片）；`GET /api/matches/{id}/usage` 多出 `cached_prompt_tokens`/`cache_hit_rate`，可实测 prompt 结构的缓存收益；`build_user_prompt` 增可选参数 `step_slices`（缺省不注入，向后兼容）；[api.md](api.md)、[events-storage.md](events-storage.md) 同步。

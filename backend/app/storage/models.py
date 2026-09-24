@@ -70,6 +70,7 @@ class LlmCallRow(SQLModel, table=True):
     model: str = ""
     prompt_tokens: int = 0
     completion_tokens: int = 0
+    cached_prompt_tokens: int = 0  # 前缀缓存命中的 prompt tokens（各家端点命名不同，已归一）
     cost_micros: int = 0
     latency_ms: int = 0
     status: str = "ok"

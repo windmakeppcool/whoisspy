@@ -5,8 +5,9 @@ import json
 import pytest
 
 from app.agents.protocol import parse_agent_response, build_user_prompt
+from app.engine.runner import MatchRunner
 from app.llm.gateway import MockLLM, OpenAICompatGateway
-from app.core import ActionRequest
+from app.core import ActionRequest, Event, VisMeta
 
 
 class TestParseAgentResponse:
@@ -128,7 +129,140 @@ class TestGatewayRetry:
         assert recorded[0]["match_id"] == 9
 
 
-class TestPromptAssembly:
+class TestUsageTokens:
+    """计量必须区分缓存命中：命中部分按折扣计价，不区分则 cost 高估、命中率无法观测。"""
+
+    def test_解析openai系缓存命中(self):
+        from app.llm.gateway import parse_usage_tokens
+
+        class Details:
+            cached_tokens = 128
+
+        class Usage:
+            prompt_tokens = 1000
+            completion_tokens = 50
+            prompt_tokens_details = Details()
+
+        assert parse_usage_tokens(Usage()) == {
+            "prompt_tokens": 1000, "completion_tokens": 50, "cached_prompt_tokens": 128}
+
+    def test_解析deepseek系缓存命中(self):
+        from app.llm.gateway import parse_usage_tokens
+
+        class Usage:
+            prompt_tokens = 800
+            completion_tokens = 20
+            prompt_cache_hit_tokens = 512
+            prompt_cache_miss_tokens = 288
+
+        assert parse_usage_tokens(Usage()) == {
+            "prompt_tokens": 800, "completion_tokens": 20, "cached_prompt_tokens": 512}
+
+    def test_字典形态usage也解析(self):
+        """部分兼容端点返回 dict 而非对象，两种形态都要认。"""
+        from app.llm.gateway import parse_usage_tokens
+
+        assert parse_usage_tokens({"prompt_tokens": 300, "completion_tokens": 10,
+                                   "prompt_tokens_details": {"cached_tokens": 64}}) == {
+            "prompt_tokens": 300, "completion_tokens": 10, "cached_prompt_tokens": 64}
+
+    def test_无usage或无缓存字段归零(self):
+        from app.llm.gateway import parse_usage_tokens
+
+        assert parse_usage_tokens(None) == {
+            "prompt_tokens": 0, "completion_tokens": 0, "cached_prompt_tokens": 0}
+        assert parse_usage_tokens(object()) == {
+            "prompt_tokens": 0, "completion_tokens": 0, "cached_prompt_tokens": 0}
+
+
+class TestPromptCacheLayout:
+    """层序服务前缀缓存：稳定前缀 → 追加式记忆 → 本步易变段，顺序不可倒置。"""
+
+    def test_本步切片排在记忆之后(self):
+        req = ActionRequest(action_type="vote", prompt="TASK-MARK")
+        p = build_user_prompt(
+            rule_slices={"overview": "GLOBAL-MARK"},
+            identity="IDENT", style="STYLE", strategy="STRAT",
+            memory="MEM-MARK", step_slices={"day_vote": "STEP-MARK"},
+            request=req,
+        )
+        assert p.index("GLOBAL-MARK") < p.index("MEM-MARK") < p.index("STEP-MARK")
+        assert p.index("STEP-MARK") < p.index("TASK-MARK")
+
+    def test_记忆之前不含任何易变内容(self):
+        """记忆层之前若出现易变内容，整段记忆前缀会随步骤切换而全废。"""
+        req = ActionRequest(action_type="vote", prompt="TASK-MARK")
+        p = build_user_prompt(
+            rule_slices={"overview": "G"}, identity="I", style="", strategy="",
+            memory="MEM-MARK", step_slices={"day_vote": "STEP-MARK"}, request=req,
+        )
+        head = p[:p.index("MEM-MARK")]
+        assert "STEP-MARK" not in head and "TASK-MARK" not in head
+
+    def test_无本步切片时保持稳定段拼装(self):
+        req = ActionRequest(action_type="speech", prompt="请发言")
+        p = build_user_prompt(rule_slices={"overview": "G"}, identity="I",
+                              style="", strategy="", memory="MEM", request=req)
+        assert p.index("G") < p.index("MEM") < p.index("请发言")
+
+
+class TestRuleSlicesByStep:
+    """D12：规则切片按当前步骤注入，而非永远只有 overview。"""
+
+    async def test_本步规则进prompt(self):
+        from random import Random
+
+        from app.games.base import Step
+        from app.games.registry import resolve_board
+
+        game, spec = resolve_board({"id": "p9-standard"})
+        captured: list[str] = []
+
+        class Spy:
+            async def ask_json(self, *, base_url, api_key, model, messages,
+                               purpose, match_id=0):
+                captured.append(messages[0]["content"])
+                return {"speech": "", "monologue": "", "action": None}
+
+        runner = MatchRunner(match_id=1, game=game, spec=spec, repo=None, gateway=Spy(),
+                             seed=1, seat_meta={1: {"model": "mock", "style": "",
+                                                    "strategy": "", "role": "witch"}})
+        runner._state = game.initial_state(spec, game.deal(spec, Random(1)))
+        request = ActionRequest(action_type="save", candidates=[1, 2], prompt="是否用药")
+        await runner._ask(1, request, "witch_turn", step=Step(kind="witch_turn"))
+        p = captured[0]
+        assert "【女巫规则】" in p          # 本步切片进来了
+        assert "【狼队规则】" not in p      # 非本步切片不进
+
+    async def test_本步切片落在记忆之后(self):
+        """易变段在记忆后，切换步骤才不会作废记忆前缀。"""
+        from random import Random
+
+        from app.games.base import Step
+        from app.games.registry import resolve_board
+
+        game, spec = resolve_board({"id": "p9-standard"})
+        captured: list[str] = []
+
+        class Spy:
+            async def ask_json(self, *, base_url, api_key, model, messages,
+                               purpose, match_id=0):
+                captured.append(messages[0]["content"])
+                return {"speech": "", "monologue": "", "action": None}
+
+        runner = MatchRunner(match_id=1, game=game, spec=spec, repo=None, gateway=Spy(),
+                             seed=1, seat_meta={1: {"model": "mock", "style": "",
+                                                    "strategy": "", "role": "witch"}})
+        runner._state = game.initial_state(spec, game.deal(spec, Random(1)))
+        runner._events = [
+            Event(type="player.speech", payload={"seat": 2, "text": "MEM-MARK"},
+                  vis=VisMeta(level="public")),
+        ]
+        request = ActionRequest(action_type="save", candidates=[1, 2], prompt="是否用药")
+        await runner._ask(1, request, "witch_turn", step=Step(kind="witch_turn"))
+        p = captured[0]
+        assert p.index("MEM-MARK") < p.index("【女巫规则】")
+        assert p.index("【女巫规则】") < p.index("是否用药")
     def test_六层顺序拼装(self):
         req = ActionRequest(action_type="vote", candidates=[1, 2], prompt="请投票")
         p = build_user_prompt(

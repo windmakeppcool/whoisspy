@@ -19,6 +19,33 @@ DEFAULT_TIMEOUT_S = 60.0
 DEFAULT_RETRY_DELAYS = (2.0, 5.0)  # 仅网络/超时类错误重试
 
 
+def _usage_get(obj: Any, name: str) -> Any:
+    """从 usage 取字段：兼容对象与 dict 两种响应形态，无则 None。"""
+    if isinstance(obj, dict):
+        return obj.get(name)
+    return getattr(obj, name, None)
+
+
+def parse_usage_tokens(usage: Any) -> dict[str, int]:
+    """解析兼容端点 usage 为统一三项：prompt / completion / cached_prompt_tokens。
+
+    缓存字段各家命名不同：OpenAI 系在 prompt_tokens_details.cached_tokens，
+    DeepSeek 系是顶层 prompt_cache_hit_tokens。都取不到则视作全量未命中（cached=0）。
+    """
+    def _int(v: Any) -> int:
+        return v if isinstance(v, int) and not isinstance(v, bool) else 0
+
+    if usage is None:
+        return {"prompt_tokens": 0, "completion_tokens": 0, "cached_prompt_tokens": 0}
+    cached = (_int(_usage_get(_usage_get(usage, "prompt_tokens_details"), "cached_tokens"))
+              or _int(_usage_get(usage, "prompt_cache_hit_tokens")))
+    return {
+        "prompt_tokens": _int(_usage_get(usage, "prompt_tokens")),
+        "completion_tokens": _int(_usage_get(usage, "completion_tokens")),
+        "cached_prompt_tokens": cached,
+    }
+
+
 class _Inner(Protocol):
     async def complete(self, *, base_url: str, api_key: str, model: str,
                        messages: list[dict[str, str]], purpose: str) -> str: ...
@@ -67,6 +94,7 @@ class MockLLM:
             await self._sink.record_call(
                 match_id=match_id, purpose=purpose, model=model,
                 prompt_tokens=pt, completion_tokens=len(raw) // 4,
+                cached_prompt_tokens=0,
                 cost_micros=0, latency_ms=1, status="ok")
         return parse_agent_response(raw)
 
@@ -154,7 +182,8 @@ class OpenAICompatGateway:
                             messages: list[dict[str, str]], purpose: str,
                             match_id: int = 0) -> str:
         t0 = time.monotonic()
-        status, prompt_tokens, completion_tokens, err = "ok", 0, 0, None
+        status, err = "ok", None
+        tokens = {"prompt_tokens": 0, "completion_tokens": 0, "cached_prompt_tokens": 0}
         try:
             if self._inner is not None:
                 out = await self._inner.complete(base_url=base_url, api_key=api_key,
@@ -164,9 +193,7 @@ class OpenAICompatGateway:
                 resp = await self._client(base_url, api_key).chat.completions.create(
                     model=model, messages=messages, temperature=0.7)  # type: ignore[arg-type]
                 out = resp.choices[0].message.content or ""
-                usage = getattr(resp, "usage", None)
-                prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
-                completion_tokens = getattr(usage, "completion_tokens", 0) or 0
+                tokens = parse_usage_tokens(getattr(resp, "usage", None))
         except (asyncio.TimeoutError, TimeoutError):
             status, err = "timeout", "timeout"
             raise
@@ -177,7 +204,9 @@ class OpenAICompatGateway:
             if self._sink is not None:
                 await self._sink.record_call(
                     match_id=match_id, purpose=purpose, model=model,
-                    prompt_tokens=prompt_tokens, completion_tokens=completion_tokens,
+                    prompt_tokens=tokens["prompt_tokens"],
+                    completion_tokens=tokens["completion_tokens"],
+                    cached_prompt_tokens=tokens["cached_prompt_tokens"],
                     cost_micros=0, latency_ms=int((time.monotonic() - t0) * 1000),
                     status=status,
                 )

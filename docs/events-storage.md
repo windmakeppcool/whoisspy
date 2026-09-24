@@ -34,7 +34,7 @@
 - **match**：id、game_type、board_json、rng_seed、status、result、current_seq、created_at。
 - **match_seat**：match_id、seat、role 回填 + **接入快照**（persona_id / style / strategy 快照、base_url、api_key_env、model、单价）——创建时展开固化（D10/D11），历史可复现。**不含 key 本体**。
 - **game_event**：match_id + seq（对局内唯一递增）、type、day_index、phase、payload_json、vis_level、vis_seats_json。**append-only**，只有 MatchRunner 写入（支柱 4）。
-- **llm_call**：token 数、cost_micros、latency、purpose、status，经 ref_event_id 弱关联事件；**不进事件流**，仅供用量面板与排障。
+- **llm_call**：token 数（prompt / completion / **cached_prompt_tokens** 前缀缓存命中）、cost_micros、latency、purpose、status，经 ref_event_id 弱关联事件；**不进事件流**，仅供用量面板与排障。旧库缺列由 `SqliteUsageRepository.init` 幂等补列。
 
 Repository 抽象（storage/repo.py）：`MatchRepository` / `UsageRepository` Protocol + SQLite 实现，未来换 Postgres 不动上层（D9）。
 

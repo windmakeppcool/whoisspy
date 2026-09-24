@@ -74,18 +74,34 @@ class MatchRunner:
     def _seat_cfg(self, seat: int) -> dict[str, Any]:
         return self._seat_meta.get(seat, {})
 
+    def _rule_partition(self, step: Step) -> tuple[dict[str, str], dict[str, str]]:
+        """规则切片按缓存语义拆分：(稳定前缀, 本步易变)。
+
+        稳定段取与步骤无关的基线切片（slices_for(空 step)），其余归本步易变段——
+        后者随步骤切换而变，只能放在记忆层之后（build_user_prompt 负责落位）。
+        """
+        all_slices = self._game.rule_slices()
+        base_keys = list(self._game.slices_for(Step(kind="")))
+        base_set = set(base_keys)
+        stable = {k: all_slices[k] for k in base_keys if k in all_slices}
+        volatile = {k: all_slices[k] for k in self._game.slices_for(step)
+                    if k not in base_set and k in all_slices}
+        return stable, volatile
+
     async def _ask(self, seat: int, request: ActionRequest,
-                   purpose: str) -> tuple[dict[str, Any] | None, dict[str, Any], bool]:
-        """向座位 agent 请求。返回 (action, response, fell_back)。"""
+                   purpose: str, step: Step) -> tuple[dict[str, Any] | None, dict[str, Any], bool]:
+        """向座位 agent 请求。返回 (action, response, fell_back)。
+
+        step 决定注入哪些规则切片（D12）；purpose 只用于计量与日志，两者不可互推。
+        """
         cfg = self._seat_cfg(seat)
         identity = f"你是 {seat} 号座位。"
         if cfg.get("role"):
             identity += f"你的角色：{cfg['role']}。"
         memory = "\n".join(self._memory_items(seat))
-        rule_slices = {k: self._game.rule_slices()[k]
-                       for k in self._game.slices_for(Step(kind="")) if k in self._game.rule_slices()}
+        stable, volatile = self._rule_partition(step)
         messages = [{"role": "user", "content": build_user_prompt(
-            rule_slices=rule_slices, identity=identity,
+            rule_slices=stable, step_slices=volatile, identity=identity,
             style=cfg.get("style", ""), strategy=cfg.get("strategy", ""),
             memory=memory, request=request)}]
         try:
@@ -217,8 +233,9 @@ class MatchRunner:
         guard = self._role_seat(st, "guard")
         if guard is None:
             return
-        request = self._game.action_schema(st, Step(kind="guard_turn"))
-        action, resp, _fell = await self._ask(guard, request, "guard_turn")
+        step = Step(kind="guard_turn")
+        request = self._game.action_schema(st, step)
+        action, resp, _fell = await self._ask(guard, request, "guard_turn", step)
         target = int(action.get("target") or 0)
         await self._emit("night.guard_target", {"seat": guard, "target": target},
                          vis=VisMeta(level="god"))
@@ -229,11 +246,12 @@ class MatchRunner:
         """警长选举（standard 第 1 天，死讯公布前）：报名 → 宣言 → 投票 → PK → 授徽。"""
         st = self._state
         alive = sorted(s for s in st.roles if st.alive[s])
-        req_reg = self._game.action_schema(st, Step(kind="sheriff_register"))
+        reg_step = Step(kind="sheriff_register")
+        req_reg = self._game.action_schema(st, reg_step)
         regs: dict[int, bool] = {}
 
         async def reg(s: int) -> None:
-            action, _resp, _fell = await self._ask(s, req_reg, "sheriff_register")
+            action, _resp, _fell = await self._ask(s, req_reg, "sheriff_register", reg_step)
             regs[s] = bool(action.get("yes", True))
 
         await asyncio.gather(*(reg(s) for s in alive))
@@ -246,11 +264,12 @@ class MatchRunner:
             await self._emit("sheriff.badge", {"action": "transfer", "to": registered[0]})
             return
         # 竞选宣言（串行）
-        sp_req = self._game.action_schema(
-            st, Step(kind="serial_speech", params={"purpose": "sheriff_speech"}))
+        sp_step = Step(kind="serial_speech", params={"purpose": "sheriff_speech"})
+        sp_req = self._game.action_schema(st, sp_step)
         for s in registered:
             if st.alive.get(s) and sp_req is not None:
-                await self._speech_round(s, sp_req, "sheriff_speech", channel=False)
+                await self._speech_round(s, sp_req, "sheriff_speech", channel=False,
+                                         step=sp_step)
         # 首轮投票：仅未上警者
         first = await self._exec_ballot(
             {"voters": [s for s in alive if s not in registered],
@@ -282,9 +301,10 @@ class MatchRunner:
             cause = causes[seat]
             role = st.roles[seat]
             if role in ("hunter", "wolf_king") and cause in ("knife", "exile"):
-                req = self._game.action_schema(st, Step(kind="gun"))
+                gun_step = Step(kind="gun")
+                req = self._game.action_schema(st, gun_step)
                 if req is not None:
-                    action, resp, _fell = await self._ask(seat, req, "gun")
+                    action, resp, _fell = await self._ask(seat, req, "gun", gun_step)
                     target = int(action.get("target") or 0)
                     await self._emit("gun.shoot",
                                      {"seat": seat, "target": target,
@@ -301,10 +321,11 @@ class MatchRunner:
     async def _badge_solo(self, actor_seat: int) -> None:
         """警徽移交/撕毁（临终一次）。"""
         st = self._state
-        req = self._game.action_schema(st, Step(kind="badge"))
+        badge_step = Step(kind="badge")
+        req = self._game.action_schema(st, badge_step)
         if req is None:
             return
-        action, resp, _fell = await self._ask(actor_seat, req, "badge")
+        action, resp, _fell = await self._ask(actor_seat, req, "badge", badge_step)
         target = int(action.get("target") or 0)
         if target and st.alive.get(target):
             await self._emit("sheriff.badge", {"action": "transfer", "to": target})
@@ -324,18 +345,20 @@ class MatchRunner:
         rounds = (self._spec.wolf_meeting_rounds if self._spec else 2)
         await self._emit("channel.round.started", {"channel": "wolf", "members": wolves},
                          vis=VisMeta(level="god"))
-        meeting = self._game.action_schema(state, Step(kind="wolf_meeting"))
-        closing = self._game.action_schema(state, Step(kind="closing"))
+        meet_step, close_step = Step(kind="wolf_meeting"), Step(kind="closing")
+        meeting = self._game.action_schema(state, meet_step)
+        closing = self._game.action_schema(state, close_step)
         proposals: dict[int, int] = {}
         for wolf in wolves:
             # 轮内串行发言（v1：每狼 1 轮发言 + 收刀，防死循环：每狼总调用 ≤ rounds+1）
             for _ in range(max(rounds - 1, 0)):
-                await self._speech_round(wolf, meeting, "wolf_channel", channel=True)
+                await self._speech_round(wolf, meeting, "wolf_channel", channel=True,
+                                         step=meet_step)
         # 收刀并行
         import asyncio as _a
 
         async def propose(w: int) -> None:
-            action, _resp, _fell = await self._ask(w, closing, "closing")
+            action, _resp, _fell = await self._ask(w, closing, "closing", close_step)
             proposals[w] = int(action.get("target") or 0)
 
         await _a.gather(*(propose(w) for w in wolves))
@@ -353,8 +376,9 @@ class MatchRunner:
         seer = self._role_seat(state, "seer")
         if seer is None:
             return
-        request = self._game.action_schema(state, Step(kind="seer_check"))
-        action, resp, _fell = await self._ask(seer, request, "seer_check")
+        seer_step = Step(kind="seer_check")
+        request = self._game.action_schema(state, seer_step)
+        action, resp, _fell = await self._ask(seer, request, "seer_check", seer_step)
         target = int(action.get("target") or 0)
         await self._emit("night.seer_query", {"seat": seer, "target": target},
                          vis=VisMeta(level="god"))
@@ -370,8 +394,9 @@ class MatchRunner:
         witch = self._role_seat(state, "witch")
         if witch is None:
             return
-        request = self._game.action_schema(state, Step(kind="witch_turn"))
-        action, resp, _fell = await self._ask(witch, request, "witch_turn")
+        witch_step = Step(kind="witch_turn")
+        request = self._game.action_schema(state, witch_step)
+        action, resp, _fell = await self._ask(witch, request, "witch_turn", witch_step)
         act = str(action.get("type", "pass"))
         target = int(action.get("target") or 0)
         if act not in ("save", "poison"):
@@ -405,17 +430,18 @@ class MatchRunner:
         """放逐结算：遗言 → 开枪/移交链。"""
         exile = getattr(self, "_last_exile", None)
         if exile and self._state.alive.get(exile) is False:
-            request = self._game.action_schema(self._state, Step(kind="last_words"))
+            last_step = Step(kind="last_words")
+            request = self._game.action_schema(self._state, last_step)
             if request is not None:
-                action, resp, _fell = await self._ask(exile, request, "last_words")
+                action, resp, _fell = await self._ask(exile, request, "last_words", last_step)
                 await self._emit("player.last_words", {"seat": exile, "text": resp.get("speech", "")})
                 if resp.get("monologue"):
                     await self._emit("player.monologue", {"seat": exile, "text": resp["monologue"]})
             await self._resolve_chain({int(exile): "exile"})
 
     async def _speech_round(self, seat: int, request: ActionRequest, purpose: str,
-                            channel: bool) -> None:
-        action, resp, _fell = await self._ask(seat, request, purpose)
+                            channel: bool, step: Step) -> None:
+        action, resp, _fell = await self._ask(seat, request, purpose, step)
         etype = "channel.message" if channel else "player.speech"
         await self._emit(etype, {"seat": seat, "text": resp.get("speech", "")})
         if resp.get("monologue"):
@@ -426,22 +452,25 @@ class MatchRunner:
         for speaker in p["speakers"]:
             if not self._state.alive.get(speaker):
                 continue
-            request = self._game.action_schema(self._state,
-                                               Step(kind="serial_speech", params=p))
+            speech_step = Step(kind="serial_speech", params=p)
+            request = self._game.action_schema(self._state, speech_step)
             if request is None:
                 continue
-            await self._speech_round(speaker, request, p.get("purpose", "speech"), channel=False)
+            await self._speech_round(speaker, request, p.get("purpose", "speech"),
+                                     channel=False, step=speech_step)
 
     async def _exec_ballot(self, p: dict[str, Any]) -> dict[str, Any]:
         """并行收集投票（防跟票）。返回 tally（含 tied 平票席位）。"""
         voters = [v for v in p["voters"] if self._state.alive.get(v)]
-        request = self._game.action_schema(self._state, Step(kind="ballot", params=p))
+        ballot_step = Step(kind="ballot", params=p)
+        request = self._game.action_schema(self._state, ballot_step)
         if request is None:
             return {"exiled": None, "tie": True, "tied": []}
         votes: dict[int, int] = {}
 
         async def collect(v: int) -> None:
-            action, _resp, _fell = await self._ask(v, request, p.get("purpose", "vote"))
+            action, _resp, _fell = await self._ask(v, request, p.get("purpose", "vote"),
+                                                   ballot_step)
             target = int(action.get("target") or 0)
             votes[v] = target
             await self._emit("vote.cast", {"seat": v, "target": target})
@@ -468,10 +497,11 @@ class MatchRunner:
 
     async def _exec_solo_action(self, p: dict[str, Any]) -> None:
         actor = p["actor"]
-        request = self._game.action_schema(self._state, Step(kind="solo_action", params=p))
+        solo_step = Step(kind="solo_action", params=p)
+        request = self._game.action_schema(self._state, solo_step)
         if request is None:
             return
-        action, resp, _fell = await self._ask(actor, request, p.get("purpose", "action"))
+        action, resp, _fell = await self._ask(actor, request, p.get("purpose", "action"), solo_step)
         await self._emit(p.get("event_type", "player.action"),
                          {"seat": actor, **action},
                          vis=VisMeta(level="god"))
@@ -488,7 +518,8 @@ class MatchRunner:
         rounds = p.get("rounds", 2)
         await self._emit("channel.round.started", {"channel": p.get("channel", ""), "members": members},
                          vis=VisMeta(level="god"))
-        request = self._game.action_schema(self._state, Step(kind="channel_meeting", params=p))
+        chan_step = Step(kind="channel_meeting", params=p)
+        request = self._game.action_schema(self._state, chan_step)
         if request is None:
             return
         proposals: dict[int, int] = {}
@@ -498,9 +529,11 @@ class MatchRunner:
                 if calls_used[m] > rounds:  # 每狼总调用 ≤ rounds+1
                     continue
                 calls_used[m] += 1
-                await self._speech_round(m, request, p.get("purpose", "channel"), channel=True)
+                await self._speech_round(m, request, p.get("purpose", "channel"),
+                                         channel=True, step=chan_step)
         # 收刀：并行提案
-        closing = self._game.action_schema(self._state, Step(kind="closing", params=p))
+        close_step = Step(kind="closing", params=p)
+        closing = self._game.action_schema(self._state, close_step)
         if closing is not None:
 
             async def propose(m: int) -> None:
@@ -508,7 +541,7 @@ class MatchRunner:
                     proposals[m] = 0
                     return
                 calls_used[m] += 1
-                action, _resp, _fell = await self._ask(m, closing, "closing")
+                action, _resp, _fell = await self._ask(m, closing, "closing", close_step)
                 proposals[m] = int(action.get("target") or 0)
 
             await asyncio.gather(*(propose(m) for m in members))

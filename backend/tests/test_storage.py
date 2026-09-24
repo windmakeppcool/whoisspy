@@ -127,3 +127,96 @@ class TestUsageRepo:
                                      cost_micros=0, latency_ms=60000, status="timeout")
         summary = await usage_repo.summarize(m["id"])
         assert summary["total_calls"] == 1
+
+    async def test_缓存命中tokens入账并算命中率(self, repo, usage_repo):
+        """命中率 = cached / prompt：不区分缓存则成本高估、无从判断 prompt 结构是否吃满前缀缓存。"""
+        m = await _make_match(repo)
+        await usage_repo.record_call(match_id=m["id"], purpose="speech", model="m1",
+                                     prompt_tokens=1000, completion_tokens=50,
+                                     cached_prompt_tokens=800,
+                                     cost_micros=1000, latency_ms=120, status="ok")
+        await usage_repo.record_call(match_id=m["id"], purpose="speech", model="m1",
+                                     prompt_tokens=200, completion_tokens=20,
+                                     cached_prompt_tokens=0,
+                                     cost_micros=100, latency_ms=30, status="ok")
+        summary = await usage_repo.summarize(m["id"])
+        assert summary["cached_prompt_tokens"] == 800
+        assert summary["prompt_tokens"] == 1200
+        assert summary["cache_hit_rate"] == pytest.approx(800 / 1200)
+
+    async def test_按模型汇总也带缓存命中(self, repo, usage_repo):
+        m = await _make_match(repo)
+        await usage_repo.record_call(match_id=m["id"], purpose="speech", model="m1",
+                                     prompt_tokens=400, completion_tokens=10,
+                                     cached_prompt_tokens=100,
+                                     cost_micros=0, latency_ms=1, status="ok")
+        await usage_repo.record_call(match_id=m["id"], purpose="speech", model="m2",
+                                     prompt_tokens=600, completion_tokens=10,
+                                     cached_prompt_tokens=300,
+                                     cost_micros=0, latency_ms=1, status="ok")
+        by_model = (await usage_repo.summarize(m["id"]))["by_model"]
+        assert by_model["m1"]["cached_prompt_tokens"] == 100
+        assert by_model["m1"]["cache_hit_rate"] == pytest.approx(0.25)
+        assert by_model["m2"]["cache_hit_rate"] == pytest.approx(0.5)
+
+    async def test_零prompt时命中率为0而非除零(self, repo, usage_repo):
+        m = await _make_match(repo)
+        await usage_repo.record_call(match_id=m["id"], purpose="vote", model="m1",
+                                     prompt_tokens=0, completion_tokens=0,
+                                     cost_micros=0, latency_ms=1, status="timeout")
+        summary = await usage_repo.summarize(m["id"])
+        assert summary["cache_hit_rate"] == 0
+
+    async def test_未传缓存参数视作全量未命中(self, repo, usage_repo):
+        """旧调用方不带 cached_prompt_tokens：应可调用且计为 0，不能报错。"""
+        m = await _make_match(repo)
+        await usage_repo.record_call(match_id=m["id"], purpose="speech", model="m1",
+                                     prompt_tokens=100, completion_tokens=5,
+                                     cost_micros=0, latency_ms=1, status="ok")
+        summary = await usage_repo.summarize(m["id"])
+        assert summary["cached_prompt_tokens"] == 0
+        assert summary["cache_hit_rate"] == 0
+
+    async def test_旧库补列后可记录缓存命中(self, tmp_path):
+        """既有 whoisspy.db 升级：init 必须为 llm_call 补 cached_prompt_tokens 列。"""
+        import aiosqlite
+
+        path = str(tmp_path / "old.db")
+        async with aiosqlite.connect(path) as db:
+            await db.execute(
+                "CREATE TABLE llm_call (id INTEGER PRIMARY KEY, match_id INTEGER,"
+                " purpose TEXT, model TEXT, prompt_tokens INTEGER, completion_tokens INTEGER,"
+                " cost_micros INTEGER, latency_ms INTEGER, status TEXT,"
+                " ref_event_seq INTEGER, created_at TEXT)")
+            await db.commit()
+        r = SqliteUsageRepository(db_path=path)
+        await r.init()
+        await r.record_call(match_id=1, purpose="p", model="m", prompt_tokens=10,
+                            completion_tokens=1, cached_prompt_tokens=5,
+                            cost_micros=0, latency_ms=1, status="ok")
+        assert (await r.summarize(1))["cached_prompt_tokens"] == 5
+        await r.close()
+
+    async def test_重复init补列幂等(self, tmp_path):
+        """补列必须幂等：旧库 init 两次，第二次撞已存在的列不能抛，且写入仍可用。"""
+        import aiosqlite
+
+        path = str(tmp_path / "idem.db")
+        async with aiosqlite.connect(path) as db:
+            await db.execute(
+                "CREATE TABLE llm_call (id INTEGER PRIMARY KEY, match_id INTEGER,"
+                " purpose TEXT, model TEXT, prompt_tokens INTEGER, completion_tokens INTEGER,"
+                " cost_micros INTEGER, latency_ms INTEGER, status TEXT,"
+                " ref_event_seq INTEGER, created_at TEXT)")
+            await db.commit()
+        for _ in range(2):
+            r = SqliteUsageRepository(db_path=path)
+            await r.init()
+            await r.close()
+        r = SqliteUsageRepository(db_path=path)
+        await r.init()
+        await r.record_call(match_id=1, purpose="p", model="m", prompt_tokens=10,
+                            completion_tokens=1, cached_prompt_tokens=3,
+                            cost_micros=0, latency_ms=1, status="ok")
+        assert (await r.summarize(1))["cached_prompt_tokens"] == 3
+        await r.close()

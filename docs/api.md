@@ -16,7 +16,7 @@ REST + SSE；所有事件出站走同一可见性过滤（[events-storage.md](ev
 | GET | `/api/matches/{id}` | 对局详情（板子、座位、状态、结果） |
 | GET | `/api/matches/{id}/events` | 事件回放，参数 `after_seq=`、`view=` |
 | GET | `/api/matches/{id}/stream` | SSE 追更，参数 `view=immersive|god` |
-| GET | `/api/matches/{id}/usage` | 用量汇总（token/费用/调用数） |
+| GET | `/api/matches/{id}/usage` | 用量汇总（token/费用/调用数/缓存命中率） |
 | POST | `/api/matches/{id}/stop` | 终止进行中的对局 |
 | GET | `/api/catalog/boards` | 板子预设 |
 | GET | `/api/catalog/personas` | 选手档案 |

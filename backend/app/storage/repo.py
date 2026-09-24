@@ -46,6 +46,7 @@ class UsageRepository(Protocol):
     async def record_call(self, *, match_id: int, purpose: str, model: str,
                           prompt_tokens: int, completion_tokens: int,
                           cost_micros: int, latency_ms: int, status: str,
+                          cached_prompt_tokens: int = 0,
                           ref_event_seq: int | None = None) -> None: ...
     async def summarize(self, match_id: int) -> dict[str, Any]: ...
 
@@ -198,7 +199,18 @@ def _vis_from(level: str, seats: list[int]):
     return VisMeta(level=level, seats=seats)  # type: ignore[arg-type]
 
 
+def _hit_rate(cached: int, prompt: int) -> float:
+    """前缀缓存命中率 = 命中 tokens / 总 prompt tokens；无 prompt 时归 0（避免除零）。"""
+    return cached / prompt if prompt else 0.0
+
+
 class SqliteUsageRepository:
+    """用量库。create_all 不会给已有表加列，_MIGRATE_COLUMNS 负责旧库补列（固定 DDL，无外部输入）。"""
+
+    _MIGRATE_COLUMNS: tuple[str, ...] = (
+        "ALTER TABLE llm_call ADD COLUMN cached_prompt_tokens INTEGER DEFAULT 0",
+    )
+
     def __init__(self, db_path: str | None = None):
         self._path = db_path or _default_db_path()
         self._engine = create_async_engine(f"sqlite+aiosqlite:///{self._path}")
@@ -209,6 +221,13 @@ class SqliteUsageRepository:
             await conn.exec_driver_sql("PRAGMA journal_mode=WAL")
             await conn.exec_driver_sql("PRAGMA busy_timeout=5000")
             await conn.run_sync(SQLModel.metadata.create_all)
+        # 补列逐条独立事务：列已存在时 SQLite 报 duplicate column，吞掉即幂等
+        for ddl in self._MIGRATE_COLUMNS:
+            try:
+                async with self._engine.begin() as conn:
+                    await conn.exec_driver_sql(ddl)
+            except Exception:
+                pass
 
     async def close(self) -> None:
         await self._engine.dispose()
@@ -219,11 +238,13 @@ class SqliteUsageRepository:
     async def record_call(self, *, match_id: int, purpose: str, model: str,
                           prompt_tokens: int, completion_tokens: int,
                           cost_micros: int, latency_ms: int, status: str,
+                          cached_prompt_tokens: int = 0,
                           ref_event_seq: int | None = None) -> None:
         async with self._session() as sess:
             sess.add(LlmCallRow(
                 match_id=match_id, purpose=purpose, model=model,
                 prompt_tokens=prompt_tokens, completion_tokens=completion_tokens,
+                cached_prompt_tokens=cached_prompt_tokens,
                 cost_micros=cost_micros, latency_ms=latency_ms, status=status,
                 ref_event_seq=ref_event_seq,
             ))
@@ -232,23 +253,31 @@ class SqliteUsageRepository:
     async def summarize(self, match_id: int) -> dict[str, Any]:
         async with self._session() as sess:
             rows = list((await sess.execute(select(LlmCallRow).where(LlmCallRow.match_id == match_id))).scalars())
-        by_model: dict[str, dict[str, int]] = {}
-        total = {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "cost_micros": 0}
+        by_model: dict[str, dict[str, Any]] = {}
+        total = {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0,
+                 "cached_prompt_tokens": 0, "cost_micros": 0}
         for r in rows:
             total["calls"] += 1
             total["prompt_tokens"] += r.prompt_tokens
             total["completion_tokens"] += r.completion_tokens
+            total["cached_prompt_tokens"] += r.cached_prompt_tokens
             total["cost_micros"] += r.cost_micros
             m = by_model.setdefault(r.model, {"calls": 0, "prompt_tokens": 0,
-                                              "completion_tokens": 0, "cost_micros": 0})
+                                              "completion_tokens": 0,
+                                              "cached_prompt_tokens": 0, "cost_micros": 0})
             m["calls"] += 1
             m["prompt_tokens"] += r.prompt_tokens
             m["completion_tokens"] += r.completion_tokens
+            m["cached_prompt_tokens"] += r.cached_prompt_tokens
             m["cost_micros"] += r.cost_micros
+        for m in by_model.values():
+            m["cache_hit_rate"] = _hit_rate(m["cached_prompt_tokens"], m["prompt_tokens"])
         return {
             "total_calls": total["calls"],
             "prompt_tokens": total["prompt_tokens"],
             "completion_tokens": total["completion_tokens"],
+            "cached_prompt_tokens": total["cached_prompt_tokens"],
+            "cache_hit_rate": _hit_rate(total["cached_prompt_tokens"], total["prompt_tokens"]),
             "cost_micros": total["cost_micros"],
             "by_model": by_model,
         }
