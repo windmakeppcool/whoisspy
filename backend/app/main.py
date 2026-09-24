@@ -43,9 +43,14 @@ async def create_match_via_api(base_url: str, *, real: bool = False,
         import os
 
         env = {**os.environ}
-        seats = build_real_seats(provider, model, n_players=6, env=env,
-                                 personas=bundle.personas, providers=bundle.providers)
+        seats, assignments = build_real_seats(
+            provider, model, n_players=6, env=env,
+            personas=bundle.personas, providers=bundle.providers)
+        print("模型分配：")
+        for a in assignments:
+            print(f"  {a['seat']}号 {a['persona_id']} -> {a['model']} ({a['basis']})")
     else:
+        assignments = None
         from app.config.defaults import DEFAULT_PERSONAS
 
         seats = [{"seat": i,
@@ -53,10 +58,12 @@ async def create_match_via_api(base_url: str, *, real: bool = False,
                   "model": "mock"}
                  for i in range(1, 7)]
     async with httpx.AsyncClient() as client:
+        board: dict = {"id": "p6-classic"}
+        if assignments:
+            board["model_assignments"] = assignments  # 分配记录随 board 落库（D19）
         resp = await client.post(
             f"{base_url.rstrip('/')}/api/matches",
-            json={"game_type": "werewolf", "board": {"id": "p6-classic"},
-                  "seats": seats})
+            json={"game_type": "werewolf", "board": board, "seats": seats})
         resp.raise_for_status()
         return int(resp.json()["id"])
 

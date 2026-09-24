@@ -61,8 +61,9 @@ persona 可选绑定 provider/model；座位未显式指定接入时自动展开
 ```
 
 - `provider_id` 必须存在于 providers.json，`model` 必须属于该 provider，`model` 不带 `provider_id` 直接拒绝启动（加载时交叉校验）。
-- 优先级：座位显式 `model/base_url` > persona 绑定 > mock。显式指定 `model: "mock"` 的座位不受绑定影响。
-- `scripts/e2e_real.py` 与 TUI `--real` 自动开局同样按 persona 绑定构建座位（按 personas.json 顺序循环取用），支持不同模型同台竞技。
+- 优先级（D19）：座位显式 `model/base_url` > persona 绑定 > **池内随机**（真实跑局入口）> mock（API 未指定时的默认）。显式指定 `model: "mock"` 的座位不受绑定与随机影响。
+- `scripts/e2e_real.py` 与 TUI `--real` 自动开局同样按 persona 绑定构建座位（按 personas.json 顺序循环取用）；**未绑定的座位从 provider 模型池按对局 seed 随机分配**（同 seed 复现），CLI `--model` 可把池收窄为单个模型。
+- **分配留痕**：每座位的最终模型随 `match_seat` 落库；完整分配记录（含 `basis: persona_binding|random` 与 `provider_id`）存于对局 `board.model_assignments`，`GET /api/matches/{id}` 可查，开局时同时打印「模型分配」清单。
 
 ## boards.json（板子预设）
 

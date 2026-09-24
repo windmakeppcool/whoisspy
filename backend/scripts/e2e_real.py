@@ -44,27 +44,39 @@ async def run_real(board_id: str, provider_id: str = "", model_id: str = "") -> 
     import os
 
     env = {**env, **{k: v for k, v in os.environ.items() if k in env}}
-    seats = build_real_seats(provider, model, n_players=spec.player_count, env=env,
-                             personas=bundle.personas, providers=bundle.providers)
+    seed = 42
+    from app.scripts_helpers.e2e import assignment_pool_for
+
+    pool = assignment_pool_for(provider, model_id)
+    seats, assignments = build_real_seats(
+        provider, model, n_players=spec.player_count, env=env,
+        personas=bundle.personas, providers=bundle.providers, seed=seed,
+        assignment_pool=pool)
     if provider["id"] == "mock":
         print("警告：没有可用真实 provider（providers.json 只有 mock），将走 mock 启发式局")
     print(f"座位数：{spec.player_count}（{board_id}）")
+    print("模型分配：")
+    for a in assignments:
+        print(f"  {a['seat']}号 {a['persona_id']} -> {a['model']} ({a['basis']})")
     repo = SqliteMatchRepository()
     usage_repo = SqliteUsageRepository()
     await repo.init()
     await usage_repo.init()
     m = await repo.create_match(
         game_type="werewolf", ruleset=spec.ruleset,
-        board={"id": board_id, "roles": spec.roles}, rng_seed=42, seats=seats)
-    roles = {a.seat: a.role for a in game.deal(spec, __import__("random").Random(42))}
-    seat_meta = {s: {"model": model, "base_url": provider.get("base_url", ""),
-                     "api_key_env": provider.get("api_key_env", ""),
-                     "api_key": os.environ.get(provider.get("api_key_env", ""), ""),
+        board={"id": board_id, "roles": spec.roles,
+               "model_assignments": assignments},  # 分配记录随对局落库留痕
+        rng_seed=seed, seats=seats)
+    roles = {a.seat: a.role for a in game.deal(spec, __import__("random").Random(seed))}
+    seat_meta = {s: {"model": seats[s - 1]["model"],
+                     "base_url": seats[s - 1]["base_url"],
+                     "api_key_env": seats[s - 1]["api_key_env"],
+                     "api_key": os.environ.get(seats[s - 1]["api_key_env"], ""),
                      "style": "", "strategy": "", "role": r}
                  for s, r in roles.items()}
     gw = OpenAICompatGateway(usage_sink=_make_sink(usage_repo, m["id"]))
     runner = MatchRunner(match_id=m["id"], game=game, spec=spec, repo=repo,
-                         gateway=gw, seed=42, seat_meta=seat_meta)
+                         gateway=gw, seed=seed, seat_meta=seat_meta)
     result = await runner.run()
     usage = await usage_repo.summarize(m["id"])
     print(json.dumps({

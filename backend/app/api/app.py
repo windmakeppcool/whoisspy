@@ -109,7 +109,9 @@ def create_app(db_path: str | None = None, data_dir: str | None = None) -> FastA
             game_type=body.game_type, ruleset=spec.ruleset,
             board={"id": body.board.get("id"), "ruleset": spec.ruleset,
                    "roles": spec.roles, "wolf_meeting_rounds": spec.wolf_meeting_rounds,
-                   "max_days": spec.max_days},
+                   "max_days": spec.max_days,
+                   **({"model_assignments": body.board["model_assignments"]}
+                      if body.board.get("model_assignments") else {})},
             rng_seed=seed, seats=seats)
         _spawn_runner(m["id"], game, spec, seed, seats)
         return m

@@ -126,3 +126,12 @@
   3. `build_real_seats` 增加 `personas`/`providers` 参数：e2e_real.py 与 TUI `--real` 按 personas.json 顺序循环取用座位，绑定涉及的所有 key 变量缺失即报错。
 - **备选**：把 provider 段内嵌进 personas.json——否决，providers 是接入事实、personas 是选手配置，合并后两处引用同一 provider 会重复；座位绑定写进 match_seat 落库新字段——否决，展开仍发生在 API 层，落库结构不变（D10 展开固化语义已覆盖）。
 - **影响**：`SeatIn.model` 默认值从 "mock" 改为 ""（请求体显式传 "mock" 不受影响，向后兼容）；loader 校验失败含 persona id 便于定位；[configuration.md](configuration.md) 补绑定示例与优先级说明；全场同一模型的「队内赛」与多模型混搭「对抗赛」都只改 personas.json 即可。
+
+## D19 未绑定座位池内随机分配模型 + 分配留痕（2026-09-24）
+
+- **背景**：D18 后未绑定 persona 的座位在真实跑局入口全部落到「provider 首个模型」，多模型池（mimo flash/pro）形同虚设；用户要求「随机分配 model，做好分配后的记录」。
+- **决策**：
+  1. **分配规则**（优先级）：座位显式指定 > persona 绑定 > 池内随机（真实跑局入口）> mock（API 未指定默认）。随机用 `Random(对局 seed)`，同 seed 可复现；`--model` 收窄池为单模型（显式覆盖优先于全池随机）。
+  2. **留痕双写**：每座位最终模型随 `match_seat` 落库（D10 展开固化，天然权威）；完整分配记录 `board.model_assignments = [{seat, persona_id, model, basis, provider_id}]` 随 board JSON 落库（API 创建时透传、e2e/TUI 开局写入），`basis` 区分 `persona_binding`/`random`。开局时打印「模型分配」清单。
+- **备选**：只靠 match_seat 记录——否决，无 `basis` 无法区分绑定与随机、复盘看不出「谁被分到什么、为什么」；分配写独立事件表——否决，board JSON 已是现成的对局元数据载体，不加表。API 默认也随机——否决，POST /api/matches 默认必须零成本 mock（隐式产生真实调用会意外花钱）。
+- **影响**：`build_real_seats` 返回 `(seats, assignments)`；`assignment_pool_for(provider, model_id)` 提供 CLI 池收窄；[configuration.md](configuration.md) 优先级与留痕说明同步。

@@ -156,3 +156,22 @@ class TestPersonaExpansion:
                 mid = resp.json()["id"]
                 m = (await c.get(f"/api/matches/{mid}")).json()
                 assert all(s["model"] == "mock" for s in m["seats"])
+
+    async def test_board的model_assignments落库透传(self, client):
+        """客户端（TUI --real 等）传入的分配记录随 board 落库，复盘可查（D19 留痕）。"""
+        assignments = [
+            {"seat": 1, "persona_id": "direct", "model": "mimo-v2.6-pro",
+             "basis": "persona_binding", "provider_id": "mimo"},
+            {"seat": 2, "persona_id": "calm-analyst", "model": "mimo-v2.6-flash",
+             "basis": "random", "provider_id": "mimo"},
+        ]
+        seats = [{"seat": i, "persona_id": "direct", "model": "mock",
+                  "name": f"p{i}"} for i in range(1, 7)]
+        resp = await client.post("/api/matches", json={
+            "game_type": "werewolf",
+            "board": {"id": "p6-classic", "model_assignments": assignments},
+            "seats": seats})
+        assert resp.status_code == 200, resp.text
+        mid = resp.json()["id"]
+        m = (await client.get(f"/api/matches/{mid}")).json()
+        assert m["board"]["model_assignments"] == assignments
