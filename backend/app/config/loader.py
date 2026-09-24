@@ -49,6 +49,8 @@ class PersonaModel(BaseModel):
     name: str
     style: str = ""
     strategy: str = ""
+    provider_id: str | None = None  # 绑定 providers 中的接入（D18：选手卡 = 性格 + 模型）
+    model: str | None = None  # 绑定 provider 下的子模型 id
 
 
 class PersonasFile(BaseModel):
@@ -90,6 +92,28 @@ def _load_json(path: Path, model_cls: type[BaseModel], data_dir: Path) -> dict[s
         raise ValueError(f"{path.name} 配置校验失败: {e}") from e
 
 
+def _validate_persona_bindings(personas: list[dict[str, Any]],
+                               providers: list[dict[str, Any]]) -> None:
+    """交叉校验 persona 绑定：provider_id 必须存在、model 必须属于该 provider。
+
+    绑定不完整（只给 model 不给 provider_id）同样拒绝启动。
+    """
+    by_id = {p["id"]: p for p in providers}
+    for persona in personas:
+        pid, model = persona.get("provider_id"), persona.get("model")
+        if model and not pid:
+            raise ValueError(
+                f"persona {persona['id']!r} 指定了 model 但缺少 provider_id")
+        if not pid:
+            continue
+        provider = by_id.get(pid)
+        if provider is None:
+            raise ValueError(f"persona {persona['id']!r} 绑定的 provider {pid!r} 不存在")
+        if model is not None and model not in {m["id"] for m in provider.get("models", [])}:
+            raise ValueError(
+                f"persona {persona['id']!r} 的 model {model!r} 不属于 provider {pid!r}")
+
+
 def load_config(data_dir: Path | str | None = None) -> ConfigBundle:
     """加载配置：有文件用文件，缺文件回落内置默认；坏文件直接抛 ValueError。"""
     d = Path(data_dir) if data_dir is not None else DEFAULT_DATA_DIR
@@ -108,6 +132,7 @@ def load_config(data_dir: Path | str | None = None) -> ConfigBundle:
     if fb.exists():
         parsed = _load_json(fb, BoardsFile, d)
         bundle.boards = {b["id"]: b for b in parsed["boards"]}
+    _validate_persona_bindings(bundle.personas, bundle.providers)
     return bundle
 
 

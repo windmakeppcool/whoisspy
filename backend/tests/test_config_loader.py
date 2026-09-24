@@ -1,6 +1,7 @@
 """配置加载器测试（Red 先行）：providers/personas/boards JSON 加载、回落、坏配置拒绝、
 .env 解析与 api key 解析（key 不落库只经环境变量）。"""
 
+import json
 import os
 from pathlib import Path
 
@@ -110,6 +111,63 @@ class TestParseEnvFile:
 
     async def test_文件不存在_返回空(self, tmp_path: Path):
         assert parse_env_file(tmp_path / "nope.env") == {}
+
+
+class TestPersonaBinding:
+    """persona 绑定 provider/model：选手卡 = 性格 + 用哪个模型打（D18）。"""
+
+    def _write_providers(self, data_dir: Path) -> None:
+        (data_dir / "providers.json").write_text(json.dumps({
+            "providers": [
+                {"id": "mimo", "base_url": "https://x.example/v1",
+                 "api_key_env": "MIMO_API_KEY", "currency": "CNY",
+                 "models": [{"id": "mimo-v2.6-flash"}, {"id": "mimo-v2.6-pro"}]},
+                {"id": "mock", "base_url": "", "api_key_env": "",
+                 "models": [{"id": "mock"}]},
+            ]}), encoding="utf-8")
+
+    def _write_personas(self, data_dir: Path, personas: list[dict]) -> None:
+        (data_dir / "personas.json").write_text(
+            json.dumps({"personas": personas}, ensure_ascii=False), encoding="utf-8")
+
+    async def test_绑定合法_provider与model_加载成功(self, tmp_path: Path):
+        self._write_providers(tmp_path)
+        self._write_personas(tmp_path, [
+            {"id": "p1", "name": "A", "style": "s", "strategy": "t",
+             "provider_id": "mimo", "model": "mimo-v2.6-pro"},
+        ])
+        bundle = load_config(tmp_path)
+        assert bundle.personas[0]["provider_id"] == "mimo"
+        assert bundle.personas[0]["model"] == "mimo-v2.6-pro"
+
+    async def test_未绑定的persona_不含绑定字段(self, tmp_path: Path):
+        self._write_providers(tmp_path)
+        self._write_personas(tmp_path, [{"id": "p1", "name": "A", "style": "s", "strategy": "t"}])
+        bundle = load_config(tmp_path)
+        assert "provider_id" not in bundle.personas[0]
+        assert "model" not in bundle.personas[0]
+
+    async def test_provider_id不存在_拒绝启动(self, tmp_path: Path):
+        self._write_providers(tmp_path)
+        self._write_personas(tmp_path, [
+            {"id": "p1", "name": "A", "provider_id": "nope", "model": "m"},
+        ])
+        with pytest.raises(ValueError, match="nope"):
+            load_config(tmp_path)
+
+    async def test_model不属于该provider_拒绝启动(self, tmp_path: Path):
+        self._write_providers(tmp_path)
+        self._write_personas(tmp_path, [
+            {"id": "p1", "name": "A", "provider_id": "mimo", "model": "mock"},
+        ])
+        with pytest.raises(ValueError, match="mock"):
+            load_config(tmp_path)
+
+    async def test_只给model不给provider_id_拒绝启动(self, tmp_path: Path):
+        self._write_providers(tmp_path)
+        self._write_personas(tmp_path, [{"id": "p1", "name": "A", "model": "mimo-v2.6-pro"}])
+        with pytest.raises(ValueError, match="provider_id"):
+            load_config(tmp_path)
 
 
 class TestResolveApiKey:

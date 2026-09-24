@@ -14,15 +14,47 @@ def pick_provider(providers: list[dict[str, Any]]) -> tuple[dict[str, Any], str]
 
 
 def build_real_seats(provider: dict[str, Any], model: str, *, n_players: int,
-                     env: dict[str, str]) -> list[dict[str, Any]]:
-    """构造 n 座位同 provider 的座位列表；key 变量未设置时直接报错（不静默走兜底）。"""
-    api_key_env = provider.get("api_key_env", "")
-    if api_key_env and not env.get(api_key_env):
-        raise ValueError(
-            f"环境变量 {api_key_env} 未设置（providers.json 引用了它），无法接入真实 LLM")
+                     env: dict[str, str],
+                     personas: list[dict[str, Any]] | None = None,
+                     providers: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    """构造 n 座位座位列表；key 变量未设置时直接报错（不静默走兜底）。
+
+    personas 提供时按序循环取用，座位接入优先用 persona 的 provider/model 绑定
+    （D18：选手卡 = 性格 + 模型）；无绑定或未提供 personas → 用默认 provider/model。
+    providers 是 persona 绑定可引用的完整 provider 表（含默认 provider），与
+    personas 一同提供；缺省时绑定 fallback 到默认 provider。
+    """
     from app.config.defaults import DEFAULT_PERSONAS
 
-    return [{"seat": i, "persona_id": DEFAULT_PERSONAS[(i - 1) % len(DEFAULT_PERSONAS)]["id"],
-             "name": "", "base_url": provider.get("base_url", ""),
-             "api_key_env": api_key_env, "model": model}
-            for i in range(1, n_players + 1)]
+    persona_list = personas if personas is not None else DEFAULT_PERSONAS
+    providers_all = {p["id"]: p for p in (providers or [provider])}
+
+    # 涉及的所有 provider 的 key 变量都必须已设置
+    key_vars: set[str] = set()
+    if provider.get("api_key_env"):
+        key_vars.add(provider["api_key_env"])
+    for persona in persona_list:
+        pid = persona.get("provider_id")
+        if pid and pid in providers_all and providers_all[pid].get("api_key_env"):
+            key_vars.add(providers_all[pid]["api_key_env"])
+        elif pid and pid not in providers_all:
+            raise ValueError(f"persona {persona.get('id')!r} 绑定的 provider {pid!r} 不存在")
+    missing = [k for k in sorted(key_vars) if not env.get(k)]
+    if missing:
+        raise ValueError(
+            f"环境变量 {', '.join(missing)} 未设置（providers.json 引用了它），无法接入真实 LLM")
+
+    seats: list[dict[str, Any]] = []
+    for i in range(1, n_players + 1):
+        persona = persona_list[(i - 1) % len(persona_list)]
+        base_url, api_key_env = provider.get("base_url", ""), provider.get("api_key_env", "")
+        seat_model = model
+        pid = persona.get("provider_id")
+        if pid and persona.get("model"):
+            p = providers_all.get(pid, provider)
+            base_url, api_key_env = p.get("base_url", ""), p.get("api_key_env", "")
+            seat_model = persona["model"]
+        seats.append({"seat": i, "persona_id": persona["id"], "name": "",
+                      "base_url": base_url, "api_key_env": api_key_env,
+                      "model": seat_model})
+    return seats

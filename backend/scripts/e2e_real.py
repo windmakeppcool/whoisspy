@@ -44,7 +44,8 @@ async def run_real(board_id: str, provider_id: str = "", model_id: str = "") -> 
     import os
 
     env = {**env, **{k: v for k, v in os.environ.items() if k in env}}
-    seats = build_real_seats(provider, model, n_players=spec.player_count, env=env)
+    seats = build_real_seats(provider, model, n_players=spec.player_count, env=env,
+                             personas=bundle.personas, providers=bundle.providers)
     if provider["id"] == "mock":
         print("警告：没有可用真实 provider（providers.json 只有 mock），将走 mock 启发式局")
     print(f"座位数：{spec.player_count}（{board_id}）")

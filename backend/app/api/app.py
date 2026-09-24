@@ -31,7 +31,7 @@ class SeatIn(BaseModel):
     name: str = ""
     base_url: str = ""
     api_key_env: str = ""
-    model: str = "mock"
+    model: str = ""  # 空串 = 未指定：persona 有绑定则用绑定，否则 mock
 
 
 class CreateMatchIn(BaseModel):
@@ -68,6 +68,22 @@ def create_app(db_path: str | None = None, data_dir: str | None = None) -> FastA
                 return p
         return bundle.personas[0]
 
+    def _seat_access(s: SeatIn) -> tuple[str, str, str]:
+        """座位接入三元组 (base_url, api_key_env, model)。
+
+        显式指定优先；未指定（空串）且 persona 有 provider/model 绑定 → 用绑定；
+        都没有 → mock。D18：选手卡 = 性格 + 用哪个模型打。
+        """
+        if s.model or s.base_url or s.api_key_env:
+            return s.base_url, s.api_key_env, s.model or "mock"
+        persona = _persona(s.persona_id)
+        pid, model = persona.get("provider_id"), persona.get("model")
+        if pid and model:
+            provider = next((p for p in bundle.providers if p["id"] == pid), None)
+            if provider is not None:
+                return provider.get("base_url", ""), provider.get("api_key_env", ""), model
+        return "", "", "mock"
+
     @app.post("/api/matches")
     async def create_match(body: CreateMatchIn) -> dict[str, Any]:
         try:
@@ -81,11 +97,14 @@ def create_app(db_path: str | None = None, data_dir: str | None = None) -> FastA
         import random
 
         seed = random.randrange(1, 2**31)
-        seats = [{
-            "seat": s.seat, "name": s.name or _persona(s.persona_id)["name"],
-            "persona_id": s.persona_id, "base_url": s.base_url,
-            "api_key_env": s.api_key_env, "model": s.model, "role": "",
-        } for s in sorted(body.seats, key=lambda x: x.seat)]
+        seats = []
+        for s in sorted(body.seats, key=lambda x: x.seat):
+            base_url, api_key_env, model = _seat_access(s)
+            seats.append({
+                "seat": s.seat, "name": s.name or _persona(s.persona_id)["name"],
+                "persona_id": s.persona_id, "base_url": base_url,
+                "api_key_env": api_key_env, "model": model, "role": "",
+            })
         m = await match_repo.create_match(
             game_type=body.game_type, ruleset=spec.ruleset,
             board={"id": body.board.get("id"), "ruleset": spec.ruleset,

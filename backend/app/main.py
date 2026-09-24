@@ -43,7 +43,8 @@ async def create_match_via_api(base_url: str, *, real: bool = False,
         import os
 
         env = {**os.environ}
-        seats = build_real_seats(provider, model, n_players=6, env=env)
+        seats = build_real_seats(provider, model, n_players=6, env=env,
+                                 personas=bundle.personas, providers=bundle.providers)
     else:
         from app.config.defaults import DEFAULT_PERSONAS
 

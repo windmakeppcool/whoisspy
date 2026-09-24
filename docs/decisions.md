@@ -116,3 +116,13 @@
   3. 真实跑局双入口：`scripts/e2e_real.py`（CLI，读配置选首个非 mock provider，p6-classic 起）与 TUI `--real` 开关（自动开局用真实 provider）；共享 `app/scripts_helpers/e2e.py` 的 `pick_provider`/`build_real_seats`，key 变量未设置时直接报错而非静默走兜底。
 - **备选**：引入 python-dotenv——否决，20 行解析足够，少一个依赖；key 存配置文件——否决，违反全局安全规范；key 解析下沉进 gateway——否决，gateway 保持"拿什么调什么"的纯接入层，变量名→key 的换算属于 API 层装配职责。
 - **影响**：`create_app(db_path, data_dir)` 启动时加载配置（catalog 接口改用 bundle）；`e2e_real.py` 补齐 [run_match.py](../backend/scripts/run_match.py) 提示却不存在的真实入口；`--tui --real` 组合可边看真实局边复盘；[configuration.md](configuration.md) 补 `.env` 加载说明。
+
+## D18 persona 绑定接入：选手卡 = 性格 + 模型（2026-09-24）
+
+- **背景**：此前座位接入只能逐座位显式给 base_url/api_key_env/model，或全桌统一走 e2e 的默认 provider；「让不同模型同台竞技、每个选手固定用某个模型」需要每次手工拼座位表。用户在 providers.json 增加 mimo-v2.6-pro 子模型后提出按 persona 选择子模型。
+- **决策**：persona 增加可选 `provider_id` + `model` 字段（绑定即「选手卡」）：
+  1. 加载时交叉校验：`provider_id` 必须存在于 providers.json、`model` 必须属于该 provider、只给 model 不给 provider_id 直接拒绝启动（`_validate_persona_bindings`）。
+  2. API 创建对局：座位未显式指定接入（`SeatIn.model` 默认改空串 = 未指定）时按 persona 绑定展开 base_url/api_key_env/model；显式指定优先于绑定；都没有 → mock。key 解析路径不变（仍只在 `_spawn_runner` 进内存）。
+  3. `build_real_seats` 增加 `personas`/`providers` 参数：e2e_real.py 与 TUI `--real` 按 personas.json 顺序循环取用座位，绑定涉及的所有 key 变量缺失即报错。
+- **备选**：把 provider 段内嵌进 personas.json——否决，providers 是接入事实、personas 是选手配置，合并后两处引用同一 provider 会重复；座位绑定写进 match_seat 落库新字段——否决，展开仍发生在 API 层，落库结构不变（D10 展开固化语义已覆盖）。
+- **影响**：`SeatIn.model` 默认值从 "mock" 改为 ""（请求体显式传 "mock" 不受影响，向后兼容）；loader 校验失败含 persona id 便于定位；[configuration.md](configuration.md) 补绑定示例与优先级说明；全场同一模型的「队内赛」与多模型混搭「对抗赛」都只改 personas.json 即可。

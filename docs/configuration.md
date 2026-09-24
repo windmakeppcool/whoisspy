@@ -45,6 +45,25 @@
 
 `style` 决定「怎么说」，`strategy` 决定「做什么」——prompt 分层注入，便于分别调优（详见 [agents-and-llm.md](agents-and-llm.md)）。
 
+### persona 绑定接入（D18：选手卡 = 性格 + 模型）
+
+persona 可选绑定 provider/model；座位未显式指定接入时自动展开，同桌可混搭不同模型：
+
+```json
+{
+  "id": "vote-analyst",
+  "name": "票型数据型",
+  "style": "冷静克制……",
+  "strategy": "优先盘票型……",
+  "provider_id": "mimo",
+  "model": "mimo-v2.6-pro"
+}
+```
+
+- `provider_id` 必须存在于 providers.json，`model` 必须属于该 provider，`model` 不带 `provider_id` 直接拒绝启动（加载时交叉校验）。
+- 优先级：座位显式 `model/base_url` > persona 绑定 > mock。显式指定 `model: "mock"` 的座位不受绑定影响。
+- `scripts/e2e_real.py` 与 TUI `--real` 自动开局同样按 persona 绑定构建座位（按 personas.json 顺序循环取用），支持不同模型同台竞技。
+
 ## boards.json（板子预设）
 
 ```json
