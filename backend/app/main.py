@@ -86,6 +86,10 @@ async def run_tui_mode(match_id: int, port: int, *, real: bool = False) -> None:
         await run_tui(base_url=base_url, match_id=match_id)
     finally:
         backend_task.cancel()
+        try:
+            await backend_task
+        except asyncio.CancelledError:
+            pass  # uvicorn lifespan 在 task-cancel 路径会打印 CancelledError 噪音，正常退出无需关注
 
 
 if __name__ == "__main__":

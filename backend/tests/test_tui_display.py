@@ -71,3 +71,39 @@ def test_渲染对话流_空():
     vm = MatchVM(feed=[])
     output = render_feed(vm)
     assert "等待事件" in output
+
+
+def test_座次表渲染输出_gbk可编码():
+    """座次表在 GBK 代码页终端（中文 Windows 默认）必须可编码。
+
+    此前用 ✓/✗（U+2713/U+2717），GBK 终端抛 UnicodeEncodeError 使渲染
+    任务静默死亡、TUI 卡在初始画面（bug 回归）。
+    """
+    from app.tui.display import render_seats
+
+    vm = MatchVM(seats=[
+        {"seat": 1, "role": "villager", "alive": True},
+        {"seat": 2, "role": "wolf", "alive": False},
+    ])
+    output = render_seats(vm, god_view=True)
+    output.encode("gbk")  # 不可编码字符会在此抛 UnicodeEncodeError
+    assert "座次表" in output
+    assert "1" in output and "2" in output
+
+
+def test_座次表存活与死亡状态可区分():
+    from app.tui.display import render_seats
+
+    vm = MatchVM(seats=[
+        {"seat": 1, "role": "villager", "alive": True},
+        {"seat": 2, "role": "wolf", "alive": False},
+    ])
+    output = render_seats(vm, god_view=True)
+    lines = output
+    # 存活与死亡的标记必须不同且都可 GBK 编码
+    assert ("1" + ALIVE_MARK) in lines
+    assert ("2" + DEAD_MARK) in lines
+
+
+ALIVE_MARK = "生"
+DEAD_MARK = "殁"

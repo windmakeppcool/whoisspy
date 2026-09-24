@@ -69,10 +69,10 @@ def test_座次表渲染():
 
     # 上帝视角：存活标记 + 角色
     assert "座次表" in god
-    assert "1✓(wolf)" in god
-    assert "2✗(villager)" in god
+    assert "1生(wolf)" in god
+    assert "2殁(villager)" in god
     # 沉浸视角：无角色泄露
-    assert "1✓" in immersive
+    assert "1生" in immersive
     assert "(wolf)" not in immersive
     assert "(villager)" not in immersive
 

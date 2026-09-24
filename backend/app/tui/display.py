@@ -41,7 +41,7 @@ def render_feed(vm: MatchVM) -> str:
 
 
 def render_seats(vm: MatchVM, god_view: bool) -> str:
-    """渲染座次表。"""
+    """渲染座次表。存活/死亡用汉字标记（GBK 终端可编码，✓/✗ 会炸中文 Windows）。"""
     if not vm.seats:
         return "座次表: -"
 
@@ -50,7 +50,7 @@ def render_seats(vm: MatchVM, god_view: bool) -> str:
         seat_num = seat.get("seat", "?")
         alive = seat.get("alive", True)
         role = seat.get("role", "")
-        status = "✓" if alive else "✗"
+        status = "生" if alive else "殁"
         role_str = f"({role})" if god_view and role else ""
         parts.append(f"{seat_num}{status}{role_str}")
 
