@@ -135,3 +135,13 @@
   2. **留痕双写**：每座位最终模型随 `match_seat` 落库（D10 展开固化，天然权威）；完整分配记录 `board.model_assignments = [{seat, persona_id, model, basis, provider_id}]` 随 board JSON 落库（API 创建时透传、e2e/TUI 开局写入），`basis` 区分 `persona_binding`/`random`。开局时打印「模型分配」清单。
 - **备选**：只靠 match_seat 记录——否决，无 `basis` 无法区分绑定与随机、复盘看不出「谁被分到什么、为什么」；分配写独立事件表——否决，board JSON 已是现成的对局元数据载体，不加表。API 默认也随机——否决，POST /api/matches 默认必须零成本 mock（隐式产生真实调用会意外花钱）。
 - **影响**：`build_real_seats` 返回 `(seats, assignments)`；`assignment_pool_for(provider, model_id)` 提供 CLI 池收窄；[configuration.md](configuration.md) 优先级与留痕说明同步。
+
+## D20 警长竞选时机修正：移到白天发言后（2026-09-24）
+
+- **背景**：D14 引入标准局警长系统时，将竞选安排在「第 1 天白天、死讯公布前」（即夜间末尾），导致对局流程呈现「第一夜先警长竞选、然后才公布夜死、再进白天发言」的顺序，与标准狼人杀的玩家直觉及参考流程不符。用户通过 p9-standard 实际对局发现「警徽第一夜就撕了」，本质是流程顺序违反直觉而非规则错误。
+- **决策**：将警长竞选从夜间末尾（`_after_night` 分支）移到第一天白天发言后、放逐投票前：
+  1. `_after_night` 移除竞选分支，夜末一律直接 `night_resolve`（公布死讯）。
+  2. `next_step` 在 `day_speech → day_vote` 之间插入：若 standard 且 `day==1` 且 `elect_done=False`，则插入 `sheriff_elect`。
+  3. 流程对齐为：夜死公布 → 白天发言 → 警长竞选（第 1 天）→ 放逐投票。
+- **备选**：保持原顺序（竞选在死讯前）——否决，用户明确指出不符合标准局流程直觉；竞选完全移到第二天——否决，警长应影响第一天放逐投票的 2 票权重。
+- **影响**：[games/werewolf.md](games/werewolf.md) 白天流程章节与状态机图同步重排；新增 [test_sheriff_flow.py](../backend/tests/test_sheriff_flow.py) 验证竞选在 `day_speech` 后、`day_vote` 前且不在夜间；standard-9/12 共用该路径，既有 193 测试全绿。

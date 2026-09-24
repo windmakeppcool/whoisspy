@@ -59,9 +59,7 @@ class WerewolfGame:
     # ---------- 状态机 ----------
 
     def _after_night(self, state: GameState) -> Step:
-        """夜末分流：standard 第 1 天先警长竞选（死讯公布前），其余直接结算夜死。"""
-        if state.extra["standard"] and state.day == 1 and not state.extra.get("elect_done"):
-            return Step(kind="sheriff_elect", params={})
+        """夜末分流：standard 第 1 天先结算夜死，其余步骤正常走流程。"""
         return Step(kind="night_resolve", params={})
 
     def next_step(self, state: GameState) -> Step:
@@ -95,6 +93,9 @@ class WerewolfGame:
         if phase == "night_resolve":
             return Step(kind="day_speech", params={})
         if phase == "day_speech":
+            # standard 第 1 天：发言后进行警长竞选，然后放逐投票
+            if std and state.day == 1 and not state.extra.get("elect_done"):
+                return Step(kind="sheriff_elect", params={})
             return Step(kind="day_vote", params={})
         if phase == "day_vote":
             return Step(kind="exile_resolve", params={})
