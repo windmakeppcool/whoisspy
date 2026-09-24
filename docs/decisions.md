@@ -106,3 +106,13 @@
   3. 出站事件统一附带 `vis {level, seats}`；TUI 始终以 `view=god` 连流，**沉浸过滤在客户端按 `vis.level` 做**（仅 public，与 `app/core.filtered_view` 语义一致），切视角不重连、不丢历史；`role.dealt`（seat 级）例外仍维护座次表，角色由渲染层按视角隐藏，不进对话流。
 - **备选**：服务端改读 `Last-Event-ID` 头——否决，前端已按查询参数实现，双轨徒增不一致；视角切换时按 view 重连——否决，丢历史事件且需补拉重放；沉浸过滤只留服务端——否决，单条 god 连接无法响应客户端本地切视角。
 - **影响**：`sse_client` 提供重试循环与游标 URL；`_event_dict` 增 `vis` 字段（前端忽略多余字段，向后兼容）；`apply_event` 增沉浸过滤与 `role.dealt`/死亡存活投影；[api.md](api.md) 同步续传与启动入口说明。
+
+## D17 配置 JSON 化落地与真实 LLM 接入（2026-09-23）
+
+- **背景**：D13 规定 providers/personas/boards 走 `backend/data/*.json`，但实现仍是 Python 硬编码（`config/defaults.py`、`registry.PRESETS`）；真实 LLM 接入存在关键缺口——API 层只把 `api_key_env` 变量名存进 seat_meta，从未解析成实际 key，导致非 mock 座位永远拿空 key 调不通。
+- **决策**：
+  1. 新增 `app/config/loader.py`：`load_config(data_dir)` 按文件加载 providers/personas/boards（pydantic 校验，坏文件抛 `ValueError` 拒绝启动），缺文件回落内置默认；boards 经 `apply_boards` 覆盖 `registry.PRESETS`。`.env` 解析手写（`parse_env_file`/`load_env_file`，不引入 python-dotenv），默认文件 `app/config/.env`，启动时注入 `os.environ`（不覆盖已有变量）。
+  2. **key 解析边界**：`resolve_api_key(api_key_env)` 只在 `_spawn_runner` 处把变量名解析成 key 进内存 seat_meta；落库 match_seat 仍只有变量名，catalog/providers 响应连 `api_key_env` 字段名也脱敏。
+  3. 真实跑局双入口：`scripts/e2e_real.py`（CLI，读配置选首个非 mock provider，p6-classic 起）与 TUI `--real` 开关（自动开局用真实 provider）；共享 `app/scripts_helpers/e2e.py` 的 `pick_provider`/`build_real_seats`，key 变量未设置时直接报错而非静默走兜底。
+- **备选**：引入 python-dotenv——否决，20 行解析足够，少一个依赖；key 存配置文件——否决，违反全局安全规范；key 解析下沉进 gateway——否决，gateway 保持"拿什么调什么"的纯接入层，变量名→key 的换算属于 API 层装配职责。
+- **影响**：`create_app(db_path, data_dir)` 启动时加载配置（catalog 接口改用 bundle）；`e2e_real.py` 补齐 [run_match.py](../backend/scripts/run_match.py) 提示却不存在的真实入口；`--tui --real` 组合可边看真实局边复盘；[configuration.md](configuration.md) 补 `.env` 加载说明。

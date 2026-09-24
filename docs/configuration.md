@@ -68,3 +68,15 @@
 - key 经 `api_key_env`（环境变量名）或 `api_key_file`（文件路径）解析；不进 JSON、不落库、不进日志。
 - catalog API 脱敏；提交前全库 grep 无 key 明文。
 - `backend/data/` 整目录不入 git（含 SQLite 库文件与配置）。
+
+## .env 加载（D17）
+
+启动时（API、`scripts/e2e_real.py`、TUI `--real`）自动读取 **`backend/app/config/.env`**（gitignore 内），把 `KEY=VALUE` 注入进程环境变量（已有环境变量优先，不被覆盖）；支持 `#` 注释与双引号包裹。providers.json 中的 `api_key_env` 填这里定义的变量名，例如：
+
+```dotenv
+BASE_URL=https://token-plan-cn.xiaomimimo.com/v1
+API_KEY=tp-xxxxxxxx
+MODEL=mimo-v2.6-flash
+```
+
+则 `providers.json` 里写 `"api_key_env": "API_KEY"` 即可。key 只在运行时由 `resolve_api_key` 解析进内存 seat_meta，落库仍是变量名。

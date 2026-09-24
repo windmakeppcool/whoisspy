@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from app.config.defaults import DEFAULT_PERSONAS, DEFAULT_PROVIDERS
+from app.config.loader import apply_boards, load_config, resolve_api_key
 from app.engine.runner import MatchRunner
 from app.export.dialog import render_dialog
 from app.games.registry import PRESETS, resolve_board
@@ -40,7 +40,11 @@ class CreateMatchIn(BaseModel):
     seats: list[SeatIn]
 
 
-def create_app(db_path: str | None = None) -> FastAPI:
+def create_app(db_path: str | None = None, data_dir: str | None = None) -> FastAPI:
+    # 配置 JSON 化（D13）：backend/data/*.json 为权威，缺文件回落内置默认；坏配置拒绝启动
+    bundle = load_config(data_dir)
+    apply_boards(bundle)
+
     @asynccontextmanager
     async def _lifespan(app: FastAPI):
         await match_repo.init()
@@ -55,13 +59,14 @@ def create_app(db_path: str | None = None) -> FastAPI:
     match_repo = SqliteMatchRepository(db_path)
     usage_repo = SqliteUsageRepository(db_path)
     runners: dict[int, MatchRunner] = {}
+    app.state.runners = runners
     stop_flags: dict[int, asyncio.Event] = {}
 
-    def _persona(persona_id: str) -> dict[str, str]:
-        for p in DEFAULT_PERSONAS:
+    def _persona(persona_id: str) -> dict[str, Any]:
+        for p in bundle.personas:
             if p["id"] == persona_id:
                 return p
-        return DEFAULT_PERSONAS[0]
+        return bundle.personas[0]
 
     @app.post("/api/matches")
     async def create_match(body: CreateMatchIn) -> dict[str, Any]:
@@ -91,8 +96,10 @@ def create_app(db_path: str | None = None) -> FastAPI:
         return m
 
     def _spawn_runner(match_id: int, game, spec, seed: int, seats: list[dict]) -> None:
+        # api_key_env → 实际 key 只解析进内存 seat_meta，落库仍只有变量名（安全规范）
         seat_meta = {s["seat"]: {"model": s["model"], "base_url": s["base_url"],
                                  "api_key_env": s["api_key_env"],
+                                 "api_key": resolve_api_key(s["api_key_env"]),
                                  "style": _persona(s["persona_id"])["style"],
                                  "strategy": _persona(s["persona_id"])["strategy"],
                                  "role": ""}
@@ -221,13 +228,13 @@ def create_app(db_path: str | None = None) -> FastAPI:
 
     @app.get("/api/catalog/personas")
     async def personas() -> list[dict[str, Any]]:
-        return DEFAULT_PERSONAS
+        return bundle.personas
 
     @app.get("/api/catalog/providers")
     async def providers() -> list[dict[str, Any]]:
-        # 脱敏：只给 id/base_url/model 列表，不给 key 相关字段值（字段名仅示意）
+        # 脱敏：只给 id/base_url/model 列表，不给 api_key_env（变量名也不外泄）
         return [{"id": p["id"], "base_url": p["base_url"],
-                 "models": [m["id"] for m in p["models"]]} for p in DEFAULT_PROVIDERS]
+                 "models": [m["id"] for m in p["models"]]} for p in bundle.providers]
 
     return app
 
