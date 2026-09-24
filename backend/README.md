@@ -47,9 +47,13 @@ API 契约见 [docs/api.md](../docs/api.md)。创建对局时座位可全 `model
 ```bash
 python -m app.main --tui                    # 自动创建一局 mock 对局并进入观看
 python -m app.main --tui --real             # 自动创建一局真实 LLM 对局（需 .env + providers）
+python -m app.main --tui --real --board p9-standard   # 真实 LLM 标准 9 人局
+python -m app.main --tui --board p12-standard         # 指定板子（mock/real 均可）
 python -m app.main --tui --match-id 13      # 观看指定对局（复盘历史）
 python -m app.main --tui --port 9000        # 后端端口
 ```
+
+`--board` 可选 `p6-classic`（默认）/ `p8-classic` / `p10-no-seer` / `p9-standard` / `p12-standard`，座位数按板子自动构建。
 
 同一进程内先后拉起 API 与终端视图，与 Web 前端共用同一套 REST/SSE。按键：`q` 退出，`g` 切换上帝/沉浸视角（D16）。
 
@@ -90,6 +94,7 @@ python -m app.main --tui
 
 # 真实对局 + 终端观看（需配好 .env 与 providers.json）
 python -m app.main --tui --real
+python -m app.main --tui --real --board p9-standard   # 标准 9 人局
 
 # 跑一局 9 人标准局并拿结果做复盘
 python scripts/e2e_real.py --board p9-standard

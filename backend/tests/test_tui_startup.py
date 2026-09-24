@@ -109,3 +109,40 @@ def test_自动开局请求载荷为6座mock局():
     assert len(body["seats"]) == 6
     assert all(s["model"] == "mock" for s in body["seats"])
     assert [s["seat"] for s in body["seats"]] == [1, 2, 3, 4, 5, 6]
+
+
+def test_解析board参数():
+    """--board 可选标准 9 人局等预设。"""
+    args = parse_args(["--tui", "--board", "p9-standard"])
+    assert args.board == "p9-standard"
+
+
+def test_默认board为p6_classic():
+    args = parse_args(["--tui"])
+    assert args.board == "p6-classic"
+
+
+def test_自动开局按板子人数创建p9局():
+    """board_id=p9-standard 时座位数与板子 id 都按 9 人局构建（mock 分支）。"""
+    import asyncio
+    from unittest.mock import MagicMock, patch, AsyncMock
+    from app.main import create_match_via_api
+
+    fake_resp = MagicMock()
+    fake_resp.json.return_value = {"id": 8, "status": "running"}
+    fake_resp.raise_for_status.return_value = None
+    fake_client = MagicMock()
+    fake_client.post = AsyncMock(return_value=fake_resp)
+    fake_client.__aenter__ = AsyncMock(return_value=fake_client)
+    fake_client.__aexit__ = AsyncMock(return_value=None)
+
+    with patch("httpx.AsyncClient", return_value=fake_client):
+        mid = asyncio.run(create_match_via_api(
+            "http://127.0.0.1:8000", board_id="p9-standard"))
+
+    assert mid == 8
+    body = fake_client.post.call_args.kwargs["json"]
+    assert body["board"]["id"] == "p9-standard"
+    assert len(body["seats"]) == 9
+    assert [s["seat"] for s in body["seats"]] == list(range(1, 10))
+    assert all(s["model"] == "mock" for s in body["seats"])
