@@ -99,6 +99,15 @@ python -m app.main --tui --real --board p9-standard   # 标准 9 人局
 # 跑一局 9 人标准局并拿结果做复盘
 python scripts/e2e_real.py --board p9-standard
 python -m app.main --tui --match-id <上一步输出的 match_id>
+
+# 导出某局发言 JSON（上帝视角整局对话：发言/遗言/独白/狼队密聊 + 夜晚操作，离线复盘用）
+curl -o match-13-dialog.json http://127.0.0.1:8000/api/matches/13/export
+# 端点 GET /api/matches/{id}/export，响应头 Content-Disposition 提示保存为 match-<id>-dialog.json
+
+# 不想记 match_id？CLI 直连库导出最近一局（需后端已跑过并落库，无需服务在跑）：
+python scripts/export_dialog.py                         # 最近一局 → match-<id>-dialog.json
+python scripts/export_dialog.py --match-id 13           # 指定对局
+python scripts/export_dialog.py --match-id 13 --out out.json   # 指定输出文件
 ```
 
 ## 更多文档
