@@ -145,3 +145,14 @@
   3. 流程对齐为：夜死公布 → 白天发言 → 警长竞选（第 1 天）→ 放逐投票。
 - **备选**：保持原顺序（竞选在死讯前）——否决，用户明确指出不符合标准局流程直觉；竞选完全移到第二天——否决，警长应影响第一天放逐投票的 2 票权重。
 - **影响**：[games/werewolf.md](games/werewolf.md) 白天流程章节与状态机图同步重排；新增 [test_sheriff_flow.py](../backend/tests/test_sheriff_flow.py) 验证竞选在 `day_speech` 后、`day_vote` 前且不在夜间；standard-9/12 共用该路径，既有 193 测试全绿。
+
+## D21 警长竞选时机复位：死讯公布前（2026-09-24，推翻 D20）
+
+- **背景**：D20 当日把警长竞选从夜末移到白天发言后（引擎 + 测试 + 文档一并改），实施后用户明确拍板「警长竞选在公布死讯前」，要求全部文件按该规则统一。复核还发现 D20 实现存在重复缺陷：`sheriff_elect → night_resolve → day_speech` 分支残留，竞选后死讯公布与白天发言会各执行两遍。
+- **决策**：回到 D14 原始顺序（同时也是参考规则待确认项的暂定方向）——**夜末竞选 → night_resolve 公布死讯 → 白天发言 → 放逐投票**：
+  1. `_after_night` 恢复竞选分支（standard、day==1、未 `elect_done` 时先 `sheriff_elect`），竞选完成后走 `night_resolve`。
+  2. `next_step` 的 `day_speech` 分支不再插入竞选，直接进 `day_vote`（消除重复死讯/发言缺陷）。
+  3. `test_sheriff_flow.py` 重写为 3 用例：竞选在 `night_resolve` 前、夜末位于 `witch_turn` 后、投票前死讯与发言各仅一次。
+  4. [games/werewolf.md](games/werewolf.md)：竞选小节移至白天流程之前（标注夜末、死讯前）；状态机图竞选步骤移到 DAWN 前；待确认项 5 标记已确认。
+- **备选**：保持 D20（发言后竞选）——否决，用户拍板回滚且该实现有重复执行缺陷；竞选放在死讯后、发言前——否决，用户明确要求死讯前。
+- **影响**：D20 被本条推翻（条目保留作历史）；引擎/测试/文档三方与「竞选在死讯前」对齐；standard-9/standard-12 共用同一时序（`state.extra["standard"]` 驱动）。
