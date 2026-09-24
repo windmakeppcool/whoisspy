@@ -52,6 +52,7 @@ class MatchRunner:
         self._state: GameState | None = None
         self._day = 1
         self._phase = ""
+        self._events: list[Event] = []  # 本局全量事件（带 vis），记忆投影的原料
 
     # ---- 事件写出（单写者入口） ----
 
@@ -63,6 +64,7 @@ class MatchRunner:
         if self._state is not None and hasattr(self._game, "visibility"):
             ev.vis = self._game.visibility(ev, self._state)
         ev = await self._repo.append_event(self._mid, ev)
+        self._events.append(ev)
         # Reducer：入库后立即归约到状态（支柱 1）
         self._game.apply(self._state, ev)
         return ev
@@ -79,7 +81,7 @@ class MatchRunner:
         identity = f"你是 {seat} 号座位。"
         if cfg.get("role"):
             identity += f"你的角色：{cfg['role']}。"
-        memory = fence_memory([(s, t) for s, t in self._memory_items(seat)])
+        memory = "\n".join(self._memory_items(seat))
         rule_slices = {k: self._game.rule_slices()[k]
                        for k in self._game.slices_for(Step(kind="")) if k in self._game.rule_slices()}
         messages = [{"role": "user", "content": build_user_prompt(
@@ -105,18 +107,55 @@ class MatchRunner:
                              vis=VisMeta(level="god"))
             return fb, {"speech": "", "monologue": "", "action": fb}, True
 
-    def _memory_items(self, seat: int) -> list[tuple[int, str]]:
-        """该座位可见的他人发言（v1 简化：全部公开发言）。"""
-        items: list[tuple[int, str]] = []
-        for ev in getattr(self, "_public_speeches", []):
-            if ev["seat"] != seat:
-                items.append((ev["seat"], ev["text"]))
-        return items
+    def _memory_items(self, seat: int) -> list[str]:
+        """该座位可见的事件历史投影（docs/agents-and-llm.md 记忆层）。
 
-    def _remember(self, seat: int, text: str) -> None:
-        if not hasattr(self, "_public_speeches"):
-            self._public_speeches = []
-        self._public_speeches.append({"seat": seat, "text": text})
+        遍历本局全量事件，按各事件的 VisMeta 过滤：public 全可见、seat 仅成员、
+        god 不可见；发言类排除本人（自己说过的话无需再喂）。
+        """
+        lines: list[str] = []
+        for ev in self._events:
+            if not self._visible_to(ev.vis, seat):
+                continue
+            line = self._memory_line(ev, seat)
+            if line:
+                lines.append(line)
+        return lines
+
+    def _visible_to(self, vis: VisMeta, seat: int) -> bool:
+        """该座位是否可见此事件。"""
+        if vis.level == "public":
+            return True
+        if vis.level == "seat":
+            return seat in (vis.seats or [])
+        return False  # god：仅上帝视角
+
+    def _memory_line(self, ev: Event, seat: int) -> str | None:
+        """单个事件 → 记忆文本行（无信息量或本人发言返回 None）。"""
+        t, p = ev.type, ev.payload
+        if t in ("player.speech", "channel.message", "player.last_words"):
+            speaker = p.get("seat")
+            if speaker == seat:
+                return None
+            text = p.get("text", "")
+            if t == "player.last_words":
+                text = f"（遗言）{text}"
+            return fence_memory([(speaker, text)])
+        if t == "night.seer_result":
+            verdict = "狼人" if p.get("verdict") == "wolf" else "好人"
+            return f"你查验了 {p.get('target')} 号玩家：阵营是【{verdict}】。"
+        if t == "night.resolved":
+            deaths = p.get("deaths") or {}
+            if deaths:
+                desc = "、".join(f"{int(k)}号" for k in sorted(deaths))
+                return f"第 {ev.day_index} 夜，{desc} 死亡。"
+            return f"第 {ev.day_index} 夜，无人死亡。"
+        if t == "vote.resolved":
+            exile = p.get("exiled")
+            if exile:
+                return f"第 {ev.day_index} 天放逐投票：{exile} 号玩家出局。"
+            return f"第 {ev.day_index} 天放逐投票：平票，无人出局。"
+        return None
 
     # ---- Step 原语执行 ----
 
@@ -383,8 +422,6 @@ class MatchRunner:
         if resp.get("monologue"):
             await self._emit("player.monologue",
                              {"seat": seat, "text": resp["monologue"]})
-        if not channel and resp.get("speech"):
-            self._remember(seat, resp["speech"])
 
     async def _exec_serial_speech(self, p: dict[str, Any]) -> None:
         for speaker in p["speakers"]:
