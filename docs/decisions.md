@@ -163,3 +163,84 @@
 - **决策**：输出 JSON 协议字段顺序改为 `monologue` → `speech` → `action`，并同步所有示范协议的位置：`build_user_prompt` 指令层 schema、`parse_agent_response` 的容错格式修复提示、`MockLLM._heuristic_reply` 返回、测试与文档中的协议样例。新增 `TestOutputSchemaOrder` 锁死该顺序（断言 schema 片段内 `'"monologue"'` 先于 `'"speech"'`）。
 - **备选**：拆成两次独立调用分别产独白与发言——否决，成本与延迟翻倍且第二跳无法共享前缀缓存，而单次调用 + 顺序调整已能拿到主要收益；只改文案强调「先想后说」而不调字段顺序——否决，文案约束弱于生成顺序约束；保持 speech 在前——否决，与 D6 的言行对照目标相悖。
 - **影响**：仍是单次调用输出三段（不变），不改 `parse_agent_response` 的 key 寻址解析（顺序无关，向后兼容历史响应）；[agents-and-llm.md](agents-and-llm.md) 协议小节同步。
+
+## D23 单板收敛：只保留 standard-9（2026-09-24）
+
+- **背景**：后端一次审查（[reviews/backend-audit-2026-09-24.md](reviews/backend-audit-2026-09-24.md)）发现标准局核心机制存在真实缺陷（当选警长被选举票判死、警长平票 PK 崩溃、守卫/狼王/极简局各有独立分支），而每多一块板子/一套 ruleset，就多一条需要维护与测试的路径。用户明确要求「删掉除标准 9 人局以外的任何其他配置，以减小出错可能」。
+- **决策**：
+  1. **只保留 ruleset `standard-9` 与板子 `p9-standard`**（3 狼 + 预言家 + 女巫 + 猎人 + 3 民）：删除 `minimal`、`standard-12`、守卫、狼王相关代码、预设、测试与文档。
+  2. `validate_board` 只认固定组合（任何其他 roles/ruleset 一律 `ValueError` → API 422）；`resolve_board` 对未知板子 id 直接拒绝（不再静默回落默认板子）。
+  3. 默认板子 id 统一走 `registry.DEFAULT_BOARD_ID`（API 默认值、`--board` 默认值、脚本默认值同源）。
+  4. 附带修复 `loader.apply_default_boards` 的别名陷阱：`DEFAULT_PRESETS` 改为注册表 `PRESETS` 的快照拷贝，否则 `apply_boards` 清空的是同一个 dict，内置默认再也恢复不回来。
+- **备选**：保留多板子只修缺陷——否决，用户要求收敛且多路径正是缺陷温床；保留 minimal 代码但不出预设——否决，会成为无人验证的休眠路径；把守卫/狼王做成可选角色——否决，standard-9 的规则文本与结算矩阵里没有它们。
+- **影响**：`rules.py` 只剩一套纯函数；`definition.py`/`flow.py` 去掉 `standard` 分支与守卫步；[games/werewolf.md](games/werewolf.md) 重写为单板文档；测试与脚本全面改到 `p9-standard`（9 座）。
+
+## D24 引擎与游戏插件解耦：StepContext + play/flow（2026-09-24）
+
+- **背景**：审查发现 `engine/runner.py` 直接 `import app.games.werewolf.rules`，并硬编码角色名（seer/witch/hunter/wolf）、游戏私有状态键（`extra["sheriff"]`/`used_save`/`night`）、11 个狼人杀专属 step kind 与中文业务串（`title.startswith("放逐")`）——`docs/game-plugin.md` 与 `CLAUDE.md` 规则 6 声称的「engine 不为具体游戏改动」实际已被打破，接第二个游戏必须改引擎。
+- **决策**：
+  1. 引擎新增 **`StepContext`**（实现 `engine/context.py`）：只暴露 IO 原语 `emit / ask（可带子步骤）/ ask_many / speech / collect_ballot / monologue` 与只读的 `state/spec/rng/step`。
+  2. 插件新增 **`GameDefinition.play(ctx, step)`**：每一步问谁、怎么结算、写哪些事件，全部写在 `games/werewolf/flow.py`（handler 表按 step kind 分派）；`runner._exec_step` 缩减为「构造 ctx + 调用 play」。
+  3. 计票/定刀/夜间结算仍留在插件（`rules.py` 纯函数），引擎不再 import 任何具体游戏模块。
+  4. 新增 `tests/test_architecture.py` 锁死边界：engine 目录下不得出现 `werewolf`/角色名/游戏事件名；插件不得 import `engine.runner`/`engine.context` 实现。
+- **备选**：把「结算钩子」做成少量方法（`resolve_night`/`tally` 等）注入引擎——否决，钩子数量会随游戏变多而膨胀，且状态机分支仍留在引擎；保留现状只更新文档——否决，等于承认插件契约失效。
+- **影响**：`runner.py` 从约 700 行降到约 270 行且零游戏痕迹；`games/werewolf/flow.py` 承载全部步内流程；`game-plugin.md` 的「4 原语」章节改写为 StepContext 契约；`tests/test_engine.py` 的假游戏实现自己的 `play`，成为契约可替换性的活证据。
+
+## D25 动作合法性/兜底归插件 + 座位接入白名单（2026-09-24）
+
+- **背景**：两处安全与正确性缺口。其一，`validate_action(state, seat, action)` 是空实现（只做类型归一），幻觉目标可以入票、放逐已死玩家、给不存在的座位发遗言，甚至让已死猎人二次开枪；容错兜底又用「请求类型 + target 0」的通用动作，导致女巫超时后**用掉了解药**（甚至触发守卫悖论）。其二，API 允许座位自带任意 `base_url` + `api_key_env`，配合 `CORS *` 与无鉴权，「用户浏览器里的任意网页」可以诱导后端把真实 key 发到攻击者地址，或直接拉走上帝视角数据。
+- **决策**：
+  1. **动作权威归插件**：契约改为 `validate_action(state, step, seat, action)`——按 `step.kind` 判定允许的动作类型集合，target 必须是存活座位，女巫用药受药数与刀口约束（空刀夜不能用解药）；任何非法输入降级为 `neutral_action(state, step)`。
+  2. **中性兜底归插件**：`neutral_action` 按步骤给出真正中性的动作（女巫步 → `pass`），引擎只在插件未实现时回落通用兜底；`ctx.ask/ask_many/speech/collect_ballot` 支持显式子步骤（竞选报名/收刀/开枪/警徽各有自己的 kind），避免「用外层 step 校验子步骤动作」的错配。
+  3. **座位接入白名单**：显式 `base_url` 必须与 providers.json 中某条一致（否则 422）；真实接入必须能解析到非空 key（否则 422，不再静默跑出全兜底假局）；新增 `provider_ref` 写法（`provider_id` 或 `provider_id/model_id`）作为推荐入口。
+  4. **入口收紧**：CORS 从 `*` 改为来源白名单（`WHOISSPY_CORS_ORIGINS` 可覆盖）；新增可选 `WHOISSPY_API_TOKEN`（设置后所有请求需带 `X-API-Token` / `Authorization: Bearer`）；`stop`/`usage` 对不存在的对局返回 404。
+- **备选**：把校验写在引擎的候选集比对里——否决，候选集语义随游戏变化，只有插件知道；保留 `CORS *` 只加 token——否决，token 默认关闭时等于没防线，浏览器侧仍可直连；禁止一切自定义 base_url——否决，座位级独立 key（D10）是真实需求，白名单已能挡住外带。
+- **影响**：`definition.py` 增加 `_STEP_ACTIONS`/`_NEUTRAL_ACTIONS` 两张表与真实校验；`api/app.py` 增加接入解析与校验、CORS/令牌中间件；[configuration.md](configuration.md)、[api.md](api.md) 同步安全约束。
+
+## D26 记忆层与阶段天数归插件（2026-09-24）
+
+- **背景**：审查实测标准 12 人局整局后，某座位**可见但被记忆层静默丢弃**的事件包括 `vote.cast`（43 次）、`sheriff.badge`（7 次）、`gun.shoot`（2 次）、`sheriff.registered`——模型因此看不到票型、不知道谁是警长、不知道有人被枪杀，「盘票型」策略（人设里明写）无法执行。同时 `phase.started` 的 `day_index/phase` 用的是上一步的值（夜首记成前一天），导出分段错位。
+- **决策**：
+  1. 记忆行渲染改为插件契约 **`GameDefinition.memory_line(event)`**：凡本座可见的事件都必须有落点（含票型/警徽/开枪/上警名单/阶段标记），engine 只负责按 `VisMeta` 过滤可见性。
+  2. 阶段天数改为插件契约 **`phase_day(state, step)`**：`phase.started` 的 `day_index` 与 `payload.day` 由插件给出（狼人杀在入夜时推进天数），不再差一天。
+  3. 防注入声明从记忆层挪到**指令层**（`docs/agents-and-llm.md` 原本就要求如此）。
+- **备选**：继续在引擎里维护事件白名单——否决，那正是 D24 要消除的耦合；把记忆层改成状态快照（存活表/票数汇总）——否决，违反 append-only 红线且作废前缀缓存。
+- **影响**：`runner._memory_line` 变为插件委托；`definition.memory_line` 覆盖 11 类事件；`test_memory_projection.py` 全面改写并新增完整性回归用例。
+
+## D27 事件语义与生命周期修正（2026-09-24）
+
+- **背景**：审查发现一批「文档承诺 vs 实现」的语义缺口：手动终止的对局被写成「狼人胜利 + finished」（`elif stop` 是死分支）；死因随 public 的 `night.resolved` 外泄；放逐平票没有 PK；白天发言固定升序（无警长定序、无 rng 起点）；`max_days` 早生效一整天；`cost_micros` 恒为 0；`match_seat` 没有 style/strategy/单价快照；`seq` 由进程内锁分配且无唯一约束；runner 任务不受生命周期管理。
+- **决策**：
+  1. **终止语义**：`match.finished` 只在真正分出胜负时发出；手动终止/步数超限/状态机停摆一律 `match.stopped`（带 reason）+ `status=stopped` + `result.winner=null`；runner 任务纳入 API 的注册表，lifespan 关停时统一中断并落 stopped，不留 running 僵尸。
+  2. **事件语义**：新增 `match.created`（首条）、`night.started`（入夜清空收集，事件驱动）、`night.death_cause`（死因，god）、`day.speech_order`（发言顺序，public）；`night.resolved` 只带死亡座位不带死因；`vote.resolved` 增 `scope`（exile/sheriff）且只有 `exile` 才判死（修复「当选警长被判死」）；删掉按中文标题嗅探的 `_last_exile` 逻辑。
+  3. **流程补齐**：放逐平票走 PK（平票者发言 + 其余全体重投，仍平票平安日）；白天发言定序（有警长由警长指定首位，否则 rng 随机，按座位升序环绕）；技能状态通知移到夜序末尾并按死因给 `can_shoot`；时限判定改为「第 `max_days` 天白天走完后」。
+  4. **计量与快照**：`compute_cost_micros` 按座位快照单价折算真实费用（未命中输入价 + 命中缓存价 + 输出价）；`match_seat` 增 style/strategy/provider_id/三个单价字段（旧库幂等补列），runner 一律用快照，历史对局可复现；`game_event` 增 `UNIQUE(match_id, seq)`，seq 改由 DB 原子自增（`UPDATE … RETURNING`）分配。
+  5. **重试链修正**：可重试异常显式包含 openai SDK 的 `APIConnectionError/APITimeoutError/RateLimitError/InternalServerError`（它们不继承内置 `ConnectionError/TimeoutError`），4xx 不重试。
+- **备选**：保留 `winner="wolf"` 表示终止——否决，类型上无法表达「无胜者」，历史列表会显示假胜利；死因留在 public payload 由前端隐藏——否决，服务端过滤是唯一防线（支柱 3）；seq 只加唯一约束不加原子自增——否决，冲突会变成写失败而非自愈。
+- **影响**：`runner.run` 收尾分支重写；`definition.apply` 按 `scope` 归约并记录放逐结果；`flow.py` 补齐 PK/定序/结算链；`storage` 增列/增索引/改 seq 分配；`gateway` 增费用折算与重试类型；测试新增 `test_voting_flows`/`test_cost`/`test_api_validation`/`test_seat_snapshot` 等回归。
+
+## D28 对抗性复核后的加固（2026-09-24）
+
+- **背景**：D23–D27 落地后又跑了一轮独立对抗性复核（一次审查新代码、一次重跑原始缺陷清单），
+  报出 5 条仍需处理的问题：选举票可投「从未上警者」（候选集只进 prompt 不进校验）、
+  他人发言可闭合 `</speech>` 并在记忆层伪造 `## 当前任务` 段落、坏 JSON 修复调用失败时外层重试失效、
+  插件 `validate_action` 抛异常被计成「LLM 调用失败」、旧库唯一索引补建失败被静默吞掉。
+- **决策**：
+  1. **候选集进校验**：`validate_action` 取 `step.params.candidates ∩ 存活` 作为合法目标集
+     （警长选举只能投上警者、PK 只能投平票者、验人/开枪/毒药同理），0 仍表示弃权。
+  2. **围栏净化**：`fence_memory` 把发言内容里的 `<`/`>` 转全角、行首 `#` 转全角——
+     围栏不可被内容闭合，也无法伪造 prompt 段落（视觉几乎无差别）。
+  3. **重试语义**：坏 JSON 每个原始响应只做一次格式修复；**修复调用本身**撞上网络/超时/5xx 时回到外层重试。
+  4. **插件错误单独记账**：`validate_action`/`neutral_action` 的异常不再落 `player.fallback`，
+     改落 god 级 `plugin.error`（含 step 与原因），动作回落通用中性动作——插件 bug 不再冒充「LLM 调用失败」。
+  5. **迁移可诊断**：旧库 DDL 拆成「补列（可吞）」与「建唯一索引（失败必须 `log.error`）」，
+     并提供 `duplicate_seq_groups()` 启动自检，暴露重复 `(match_id, seq)` 以便清理。
+  6. **死亡链守门**：放逐链新增 `last_exile_was_alive`（投票前存活标记），
+     只有「本轮真的从存活变死亡」的座位才走遗言/开枪链（原先的「现在是不是死的」判定对本就死亡的座位无效）。
+  7. **记忆层补全**：`day.speech_order` / `match.started` / `match.finished` 也进记忆；
+     `role.dealt` / `night.started` / `match.created` 刻意不落点（信息已由身份层与阶段标记给出），并在文档里写明理由。
+- **备选**：把候选集校验留在引擎侧（否决，引擎不认识候选语义）；围栏改用引用前缀+缩进（否决，
+  改动大且伤可读性，转义已足够）；插件异常直接让对局失败（否决，违背「绝不卡死整局」容错链）。
+- **影响**：`definition.validate_action` 增候选集分支；`protocol.fence_memory` 增 `_sanitize_speech`；
+  `gateway.ask_json` 修复分支增可重试兜底；`runner._ask` 拆出插件错误路径；`storage/repo.py` 增迁移诊断；
+  新增 `tests/test_adversarial_regressions.py` 锁死这 5 条。

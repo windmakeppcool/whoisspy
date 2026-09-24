@@ -48,12 +48,11 @@ API 契约见 [docs/api.md](../docs/api.md)。创建对局时座位可全 `model
 python -m app.main --tui                    # 自动创建一局 mock 对局并进入观看
 python -m app.main --tui --real             # 自动创建一局真实 LLM 对局（需 .env + providers）
 python -m app.main --tui --real --board p9-standard   # 真实 LLM 标准 9 人局
-python -m app.main --tui --board p12-standard         # 指定板子（mock/real 均可）
 python -m app.main --tui --match-id 13      # 观看指定对局（复盘历史）
 python -m app.main --tui --port 9000        # 后端端口
 ```
 
-`--board` 可选 `p6-classic`（默认）/ `p8-classic` / `p10-no-seer` / `p9-standard` / `p12-standard`，座位数按板子自动构建。
+`--board` 当前只有 `p9-standard`（标准 9 人局，默认；单板收敛见 D23），座位数按板子自动构建。
 
 同一进程内先后拉起 API 与终端视图，与 Web 前端共用同一套 REST/SSE。按键：`q` 退出，`g` 切换上帝/沉浸视角（D16）。
 
@@ -64,23 +63,22 @@ python -m app.main --tui --port 9000        # 后端端口
 **mock 确定性整局**（零网络、调试用）：
 
 ```bash
-python scripts/run_match.py --mock --board p6-classic --seed 42
+python scripts/run_match.py --mock --seed 42
 ```
 
 **真实 LLM 整局**（读 `data/` 配置 + `.env`，按 persona 绑定/池内随机分配模型）：
 
 ```bash
-python scripts/e2e_real.py                              # 默认 p6-classic
-python scripts/e2e_real.py --board p9-standard          # 标准 9 人局
+python scripts/e2e_real.py                              # 默认 p9-standard
 python scripts/e2e_real.py --provider mimo --model mimo-v2.6-pro   # 收窄随机池
 ```
 
-输出胜负、事件数、token 用量与每座位模型分配记录。板子可选值见 `data/boards.json` / 内置预设（`p6-classic` `p8-classic` `p10-no-seer` `p9-standard` `p12-standard`）。
+输出胜负、事件数、token 用量与每座位模型分配记录。板子只有 `p9-standard`（`data/boards.json` 或内置预设）。
 
 ### 4. 跑测试
 
 ```bash
-python -m pytest tests/ -q           # 全量（194 个）
+python -m pytest tests/ -q           # 全量
 python -m pytest tests/test_sheriff_flow.py -q   # 单文件
 ```
 
@@ -94,10 +92,9 @@ python -m app.main --tui
 
 # 真实对局 + 终端观看（需配好 .env 与 providers.json）
 python -m app.main --tui --real
-python -m app.main --tui --real --board p9-standard   # 标准 9 人局
 
 # 跑一局 9 人标准局并拿结果做复盘
-python scripts/e2e_real.py --board p9-standard
+python scripts/e2e_real.py
 python -m app.main --tui --match-id <上一步输出的 match_id>
 
 # 导出某局发言 JSON（上帝视角整局对话：发言/遗言/独白/狼队密聊 + 夜晚操作，离线复盘用）
@@ -118,4 +115,5 @@ python scripts/export_dialog.py --match-id 13 --out out.json   # 指定输出文
 | 配置文件格式与密钥安全 | [docs/configuration.md](../docs/configuration.md) |
 | 引擎 / 容错链 | [docs/engine.md](../docs/engine.md) |
 | 狼人杀规则与板子 | [docs/games/werewolf.md](../docs/games/werewolf.md) |
-| 决策记录（D1~D21） | [docs/decisions.md](../docs/decisions.md) |
+| 决策记录（D1~D27） | [docs/decisions.md](../docs/decisions.md) |
+| 后端审查报告（2026-09-24） | [docs/reviews/backend-audit-2026-09-24.md](../docs/reviews/backend-audit-2026-09-24.md) |

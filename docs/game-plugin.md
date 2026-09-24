@@ -1,10 +1,14 @@
 # 游戏插件契约（多游戏扩展边界）
 
-新游戏 = 实现 `GameDefinition` + 注册 + 写规则切片 + 提供 boards 预设。engine / agents / storage 不为具体游戏改动；若必须改，说明本契约有缺口，**先修订本文档再动代码**。
+新游戏 = 实现 `GameDefinition` + 注册 + 写规则切片 + 提供 boards 预设 + 实现 `flow.py` 步内流程。
+**engine / agents / storage 不为具体游戏改动**；若必须改，说明本契约有缺口，先修订本文档再动代码。
 
 抽象只覆盖「阵营制 + 隐藏身份 + 轮流发言 + 投票」这一族（狼人杀、谁是卧底、阿瓦隆等），不做万能游戏引擎。
 
-## GameDefinition（games/base.py）
+> 当前只有 `werewolf`（唯一板子 standard-9）一个插件，见 [games/werewolf.md](games/werewolf.md)。
+> 单板收敛见 [decisions.md](decisions.md) D23。
+
+## 一、GameDefinition（games/base.py）
 
 ```python
 class GameDefinition(Protocol):
@@ -13,55 +17,85 @@ class GameDefinition(Protocol):
     # 配置与发牌
     def validate_board(self, board_cfg: dict) -> BoardSpec: ...
     def deal(self, spec: BoardSpec, rng: random.Random) -> list[RoleAssignment]: ...
+    def initial_state(self, spec: BoardSpec, roles: list[RoleAssignment]) -> GameState: ...
 
     # 状态机（Reducer，支柱 1）
-    def initial_state(self, spec: BoardSpec, roles: list[RoleAssignment]) -> GameState: ...
-    def next_step(self, state: GameState) -> Step: ...
+    def next_step(self, state: GameState) -> Step: ...       # kind 由插件自定义
     def apply(self, state: GameState, event: Event) -> None: ...
 
-    # 动作与规则
-    def action_schema(self, step: Step) -> ActionRequest | None: ...
-    def validate_action(self, state: GameState, seat: int, action: dict) -> dict: ...
+    # 动作与规则（合法性的唯一权威）
+    def action_schema(self, state: GameState, step: Step) -> ActionRequest | None: ...
+    def validate_action(self, state: GameState, step: Step, seat: int,
+                        action: dict) -> dict: ...
+    def neutral_action(self, state: GameState, step: Step) -> dict: ...
     def check_winner(self, state: GameState) -> GameResult | None: ...
 
     # 可见性唯一权威（支柱 3）
-    def visibility(self, draft: Event, state: GameState) -> VisMeta: ...
+    def visibility(self, event: Event, state: GameState) -> VisMeta: ...
 
     # 规则切片注入（D12）
-    def rule_slices(self) -> dict[str, str]: ...        # 切片键 → 规则文本
-    def slices_for(self, step: Step) -> list[str]: ...  # 该步骤需要的切片键（含 overview）
+    def rule_slices(self) -> dict[str, str]: ...
+    def slices_for(self, step: Step) -> list[str]: ...
+
+    # 步内流程（游戏规则的唯一归属地）
+    async def play(self, ctx: StepContext, step: Step) -> None: ...
+
+    # engine 不认识的语义：记忆层投影 / 阶段天数
+    def memory_line(self, event: Event) -> str | None: ...
+    def phase_day(self, state: GameState, step: Step) -> int: ...
 ```
 
-约束：
+约定：
 
-- `deal` / 计票 / 平票等一切随机必须走传入的带种子 `rng`，且结果写入事件——保证确定性重放与未来分叉重跑（支柱 1）。
-- `apply` 是纯归约：同事件流必须重建出同状态（有单测锁死 `apply 重放 ≡ 直接构造`）。
-- `visibility` 是**唯一**可见性权威：事件入库前由它标注 `vis_level`（public / seat / god）与 `vis_seats`，出站过滤只认这份元数据。
-- `rule_slices` 的切片组织示例：`overview`（阵营与胜利条件）、`night_wolf`（狼队频道与定刀）、`night_seer`（验人）、`day_speech`（发言秩序）、`day_vote`（计票与平票）。`slices_for` 按当前 Step 选取，配合 [agents-and-llm.md](agents-and-llm.md) 六层拼装的规则层。
+- `deal` / 计票 / 平票等一切随机必须走传入的带种子 `rng`（`ctx.rng`），结果写入事件——保证确定性重放。
+- `apply` 是纯归约：同事件流必须重建出同状态（有单测锁死「apply 重放 ≡ 直接构造」）；
+  插件私有状态放 `state.extra`，**只能由 `apply` 修改**（如入夜清空动作收集是 `night.started` 事件驱动的）。
+- `visibility` 标注 `vis_level`/`vis_seats`；出站过滤只认这份元数据（`core.filtered_view`）。
+- `validate_action` 必须把非法动作降级为 `neutral_action` 的结果——engine 不再做任何游戏语义校验。
+  步骤参数 `step` 必须传入：动作类型集合与**合法目标候选集**都按 `step` 判定
+  （候选集取 `step.params["candidates"] ∩ 存活`；子步骤如竞选报名/收刀/开枪各有自己的 kind）。
+  插件代码抛异常不会被当成「LLM 调用失败」：engine 会落 god 级 `plugin.error` 并回落通用中性动作。
+- `neutral_action` 是**必须实现**的契约方法：它给出该步骤真正中性的动作，
+  **绝不能替玩家做决定**（女巫步的 `action_type` 是 save，但兜底必须是 `pass`，不能用掉解药）。
+  插件未实现时引擎会回落「请求类型 + target 0」的通用兜底并打印一次告警——对「用药/开枪」类动作并不中性，
+  只作为最后防线。
+- `memory_line` 返回 prompt 就绪的一行；返回 `None` 表示该事件不进记忆。
 
-## Step 原语（engine/steps.py，插件可组合的全部积木）
+## 二、StepContext：engine 提供的 IO 原语（engine/context.py）
 
-| 原语 | 语义 | 典型用途 |
-|---|---|---|
-| `ChannelMeeting(channel_id, members, topic, rounds, closing_action)` | 私密频道多轮串行商量 + 收尾动作 | 狼队夜间商量定刀 |
-| `SoloAction(actor, request, outcome_visibility_seats)` | 单人私密决策，结果按指定座可见 | 预言家验人 |
-| `SerialSpeech(speakers)` | 按序轮流公开发言 | 白天发言（节目效果核心） |
-| `Ballot(voters, candidates, tie_policy)` | 并行收集投票防跟票，按策略结算平票 | 白天放逐投票 |
+插件在 `play` 里只通过 ctx 与外界交互。engine 不暴露 runner 内部，也不认识任何游戏事件。
 
-游戏的状态机用这 4 个原语编排（`next_step` 产出 Step），结算规则写在游戏插件内；不新增原语类型，除非至少两个目标游戏都需要（防抽象泄漏）。
+| 原语 | 语义 |
+|---|---|
+| `ctx.state` / `ctx.spec` / `ctx.rng` / `ctx.step` | 只读状态、板子规格、对局级带种子随机源、当前步骤 |
+| `await ctx.emit(type, payload=None, vis=None)` | 落事件（seq 单写者）并立即归约到状态 |
+| `await ctx.ask(seat, request, purpose="…", step=None)` | 单座位调用，返回 `(action, resp)`；`step` 决定校验规则与规则切片 |
+| `await ctx.ask_many(seats, request, purpose="…", step=None)` | 并行收集多座位（互不通气），逐座位补落独白 |
+| `await ctx.speech(seat, request, channel=False, purpose="…", step=None)` | 一次发言：落 `player.speech`/`channel.message` + 独白 |
+| `await ctx.collect_ballot(voters, candidates, title=…, step_kind=…)` | 并行收票（防跟票），逐票落 `vote.cast`，返回 `voter→target` |
+| `await ctx.monologue(seat, resp)` | 需要手动补落独白时使用 |
 
-补充执行语义：
+**计票规则在插件里**（engine 不认识警长 2 票权重）；`collect_ballot` 只负责收票与落 `vote.cast`。
 
-- **夜间并行**：同夜多个 SoloAction（守卫/狼刀/验人/用药）互不通气、可并行收集；狼队内部先经 ChannelMeeting 商量再收刀（并行提案多数决）。
-- **复合动作**：ActionRequest 支持「choice + target」组合（女巫：救/毒/不用药；警长：顺/逆时针、移交/撕毁；猎人/狼王：开枪目标/不开枪），`validate_action` 校验合法性（禁连守、药数、开枪资格、目标存活等）。
-- **Ballot 的 tie_policy**：`random`（带种子随机）、`no_exile`（平安日/丢徽）、`pk_then_no_exile`（PK 发言后重投，仍平则平安日——PK 由状态机编排 SerialSpeech + 二次 Ballot，非原语内建）。
-- **结算链**：死亡结算后的连锁技能（开枪→枪杀、警徽移交）由状态机展开为后续 Step，每死一档立即 check_winner。
+引擎侧通用职责（插件不需要也不应该实现）：事件写入与 seq、`apply` 调用、可见性标注时机、
+prompt 六层拼装与记忆投影、调用容错链（重试/坏 JSON 修复/中性兜底）、步级超时、终止语义。
 
-## 新游戏接入清单
+## 三、状态机与步骤
 
-1. `games/<name>/definition.py` 实现 GameDefinition（含规则切片）。
-2. `games/<name>/rules.py` 纯函数：发牌校验、计票、胜负、结算。
-3. `games/<name>/state.py` 状态定义 + `apply` 归约。
-4. `games/registry.py` 注册 `game_type`。
-5. `boards.json` 增该游戏板子预设（[configuration.md](configuration.md)）。
-6. 测试：规则纯函数单测 + `apply` 重放等价 + mock 整局（[milestones.md](milestones.md) 测试策略）。
+`next_step(state)` 返回 `Step(kind, params)`：
+
+- `kind` 由插件自定义（engine 不认识具体值），`params` 供插件自用（如 `speakers`）。
+- `kind == "noop"` 表示「没有可执行步骤」：引擎会再查一次胜负，仍未分胜负则判为状态机停摆（status=stopped）。
+- 引擎在每步前落 `phase.started`（`phase=kind`、`day=phase_day(state, step)`），并做步级超时兜底。
+
+「4 原语」的现代形态就是上面的 `ctx` 方法（并发/串行语义由插件组合），不再有 `engine/steps.py`。
+
+## 四、新游戏接入清单
+
+1. `games/<name>/rules.py`：纯函数——板子校验、发牌、计票、结算、胜负。
+2. `games/<name>/definition.py`：`GameDefinition` 实现（状态机、动作 schema/校验、可见性、记忆行、切片）。
+3. `games/<name>/flow.py`：`play` 的步内流程（用 ctx 原语编排）。
+4. `games/<name>/prompts.py`：规则切片文本。
+5. `games/registry.py` 注册 `game_type`；`backend/data/boards.json`（或内置 `PRESETS`）加板子预设。
+6. 测试：规则纯函数单测 + `apply` 重放等价 + mock 整局 + 架构约束
+   （`tests/test_architecture.py` 会检查 engine 里不得出现任何具体游戏痕迹）。

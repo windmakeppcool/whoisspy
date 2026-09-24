@@ -20,7 +20,13 @@
 }
 ```
 
-创建对局时可引用预设，服务端**展开固化**进 match_seat（D10）；也可每座位直接给 base_url/api_key_env/model（+可选单价，缺省用预设或 0）。`GET /api/catalog/providers` 返回时 `api_key_env` 保留字段名但永不返回 key 值。
+创建对局时可引用预设，服务端**展开固化**进 match_seat（D10）；也可每座位直接给 base_url/api_key_env/model，
+但 base_url 必须是 providers.json 里已配置的地址（白名单，见下）。`GET /api/catalog/providers`
+只返回 id/base_url/模型 id 列表，**连 api_key_env 字段名都不外泄**（D17）。
+
+模型项支持三个单价字段（每 1,000,000 token 的价格，用于 `llm_call.cost_micros`）：
+`price_per_mtok_in`、`price_per_mtok_out`、`price_per_mtok_cached_in`（缺省等于输入价）。
+单价随座位快照固化，历史对局费用不受后续改价影响。
 
 ## personas.json（选手档案，style + strategy，D11）
 
@@ -70,24 +76,25 @@ persona 可选绑定 provider/model；座位未显式指定接入时自动展开
 ```json
 {
   "boards": [
-    { "id": "p6-classic", "game_type": "werewolf", "ruleset": "minimal", "roles": { "wolf": 2, "seer": 1, "villager": 3 }, "wolf_meeting_rounds": 2, "max_days": 8 },
-    { "id": "p8-classic", "game_type": "werewolf", "ruleset": "minimal", "roles": { "wolf": 2, "seer": 1, "villager": 5 }, "wolf_meeting_rounds": 2, "max_days": 8 },
-    { "id": "p10-no-seer", "game_type": "werewolf", "ruleset": "minimal", "roles": { "wolf": 3, "villager": 7 }, "wolf_meeting_rounds": 2, "max_days": 8 },
-    { "id": "p9-standard", "game_type": "werewolf", "ruleset": "standard-9", "roles": { "wolf": 3, "seer": 1, "witch": 1, "hunter": 1, "villager": 3 }, "wolf_meeting_rounds": 2, "max_days": 8 },
-    { "id": "p12-standard", "game_type": "werewolf", "ruleset": "standard-12", "roles": { "wolf": 3, "wolf_king": 1, "seer": 1, "witch": 1, "hunter": 1, "guard": 1, "villager": 4 }, "wolf_meeting_rounds": 2, "max_days": 8 }
+    { "id": "p9-standard", "game_type": "werewolf", "ruleset": "standard-9", "roles": { "wolf": 3, "seer": 1, "witch": 1, "hunter": 1, "villager": 3 }, "wolf_meeting_rounds": 2, "max_days": 8 }
   ]
 }
 ```
 
-- 只配角色组合（D3）；服务端按 `ruleset` 分别 `validate_board`（见 [games/werewolf.md](games/werewolf.md)）。
-- `ruleset`：`minimal`（v1）、`standard-9`（标准 9 人局，D15）、`standard-12`（标准 12 人局，D14）；`max_days` 天数上限，超时仍存活狼 → 狼胜。
-- `custom` 板子由请求体给 roles，同样走校验。
+- **当前只支持 standard-9 一块板子**（D23）：其他 id 一律 422；`roles` 必须严格等于固定组合。
+- 可调项：`wolf_meeting_rounds`（狼队夜聊轮数）、`max_days`（天数上限，第 N 天白天走完后仍存活狼 → 狼胜）。
+- 配置在**进程启动时**加载：改 boards.json 需要重启后端（milestones M3 的验收口径）。
+- 内置默认预设与 `backend/data/boards.json` 二选一：文件存在则以文件为权威，缺文件回落内置默认。
 
-## 密钥安全（全局安全规范）
+## 密钥与接入安全（全局安全规范）
 
-- key 经 `api_key_env`（环境变量名）或 `api_key_file`（文件路径）解析；不进 JSON、不落库、不进日志。
-- catalog API 脱敏；提交前全库 grep 无 key 明文。
-- `backend/data/` 整目录不入 git（含 SQLite 库文件与配置）。
+- key 只经 `api_key_env`（环境变量名）解析；不进 JSON、不落库、不进日志、不出现在 catalog 响应里。
+- **座位接入白名单**：请求体里显式给的 `base_url` 必须与 providers.json 中某条一致，否则 422——
+  防止「浏览器里的任意网页」诱导后端把真实 key 发到攻击者地址。
+- 真实接入（非 mock）必须能在环境变量里解析到非空 key，否则创建对局直接 422（不再静默跑出一局全兜底的假局）。
+- `WHOISSPY_API_TOKEN`（可选）：设置后所有 API 请求都要带 `X-API-Token` 或 `Authorization: Bearer`。
+- `WHOISSPY_CORS_ORIGINS`（可选）：逗号分隔的来源白名单，缺省只放行本机常见端口（Vite 5173/4173、观看台 3080）。
+- `backend/data/` 整目录不入 git（含 SQLite 库文件与配置）；提交前全库 grep 无 key 明文。
 
 ## .env 加载（D17）
 

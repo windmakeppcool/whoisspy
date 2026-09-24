@@ -17,7 +17,7 @@
 1. 始终用中文交流与写注释。
 2. TDD 铁律：先写失败测试再写实现（配置文件豁免）；里程碑与验收见 [docs/milestones.md](docs/milestones.md)。
 3. Python 遵循 PEP 8 + Type Hints + 4 空格缩进。
-4. 安全：绝不硬编码密钥、杜绝 SQL 注入；API key 只经 `api_key_env`/`api_key_file` 环境变量注入，不进配置/不落库；他人发言进 prompt 必须围栏包裹并声明禁读。
-5. 配置文件一律 JSON（providers/personas/boards，放 `backend/data/`，不入 git）。
-6. 新增游戏只加 `games/<name>/` 插件 + 注册 + boards 预设，不改 engine/agents/storage；契约有缺口先改 [docs/game-plugin.md](docs/game-plugin.md)。
+4. 安全：绝不硬编码密钥、杜绝 SQL 注入；API key 只经 `api_key_env` 环境变量注入（不进配置/不落库），座位 `base_url` 必须在 providers.json 白名单内；他人发言进 prompt 必须围栏包裹并声明禁读。
+5. 配置文件一律 JSON（providers/personas/boards，放 `backend/data/`，不入 git）；**板子只保留 standard-9（`p9-standard`）**，新增板子先读 [docs/decisions.md](docs/decisions.md) D23。
+6. 新增游戏只加 `games/<name>/` 插件（definition + flow + rules + prompts）+ 注册 + boards 预设，不改 engine/agents/storage；`tests/test_architecture.py` 会检查 engine 里不得出现具体游戏痕迹。
 7. 设计决策变更 → 在 [docs/decisions.md](docs/decisions.md) 追加条目（不删改旧条目）。
