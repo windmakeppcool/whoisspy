@@ -38,16 +38,16 @@ async def run_real(board_id: str, provider_id: str = "", model_id: str = "") -> 
     provider, model = pick_provider(providers)
     if model_id:
         model = model_id
+    print(f"provider={provider['id']} model={model} board={board_id}")
+    game, spec = resolve_board({"id": board_id})
     env = parse_env_file(DEFAULT_ENV_FILE)
     import os
 
     env = {**env, **{k: v for k, v in os.environ.items() if k in env}}
-    seats = build_real_seats(provider, model, n_players=6, env=env)
+    seats = build_real_seats(provider, model, n_players=spec.player_count, env=env)
     if provider["id"] == "mock":
         print("警告：没有可用真实 provider（providers.json 只有 mock），将走 mock 启发式局")
-
-    print(f"provider={provider['id']} model={model} board={board_id}")
-    game, spec = resolve_board({"id": board_id})
+    print(f"座位数：{spec.player_count}（{board_id}）")
     repo = SqliteMatchRepository()
     usage_repo = SqliteUsageRepository()
     await repo.init()
