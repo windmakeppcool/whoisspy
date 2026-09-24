@@ -77,37 +77,48 @@ async def create_match_via_api(base_url: str, *, real: bool = False,
         return int(resp.json()["id"])
 
 
-async def start_backend(port: int) -> None:
-    """在后台启动后端服务。"""
+async def start_backend(port: int,
+                        server_ref: dict[str, uvicorn.Server] | None = None) -> None:
+    """在后台启动后端服务。
+
+    server_ref 若传入，serve 前写入 {"server": server}，供调用方优雅关闭（should_exit）。
+    """
     config = uvicorn.Config("app.main:app", host="127.0.0.1", port=port, log_level="warning")
     server = uvicorn.Server(config)
+    if server_ref is not None:
+        server_ref["server"] = server
     await server.serve()
 
 
 async def run_tui_mode(match_id: int, port: int, *, real: bool = False,
                        board: str = "p6-classic") -> None:
     """TUI 模式：启动后端 + 打开 TUI。match_id 为 0 时自动创建一局。"""
-    # 在后台启动后端
-    backend_task = asyncio.create_task(start_backend(port))
-
-    # 等待后端启动
-    await asyncio.sleep(1.0)
+    server_ref: dict[str, uvicorn.Server] = {}
+    # 在后台启动后端（持有 server 引用以便优雅关闭）
+    backend_task = asyncio.create_task(start_backend(port, server_ref))
 
     base_url = f"http://127.0.0.1:{port}"
-    if match_id == 0:
-        # 自动开局：POST 一局（real 决定 mock 或真实 LLM），用新对局 ID 进入观看
-        match_id = await create_match_via_api(base_url, real=real, board_id=board)
-
-    # 启动 TUI
-    from app.tui.main import run_tui
     try:
+        # 等待后端启动
+        await asyncio.sleep(1.0)
+        if match_id == 0:
+            # 自动开局：POST 一局（real 决定 mock 或真实 LLM），用新对局 ID 进入观看
+            match_id = await create_match_via_api(base_url, real=real, board_id=board)
+
+        # 启动 TUI
+        from app.tui.main import run_tui
         await run_tui(base_url=base_url, match_id=match_id)
     finally:
-        backend_task.cancel()
+        # 优雅关闭：置 should_exit 让 uvicorn 走完 lifespan.shutdown 再退出，
+        # 避免直接 cancel 导致 uvicorn 打印 CancelledError traceback；超时才兜底取消
+        server = server_ref.get("server")
+        if server is not None:
+            server.should_exit = True
         try:
-            await backend_task
-        except asyncio.CancelledError:
-            pass  # uvicorn lifespan 在 task-cancel 路径会打印 CancelledError 噪音，正常退出无需关注
+            await asyncio.wait_for(backend_task, timeout=5)
+        except asyncio.TimeoutError:
+            backend_task.cancel()
+            await asyncio.gather(backend_task, return_exceptions=True)
 
 
 if __name__ == "__main__":
