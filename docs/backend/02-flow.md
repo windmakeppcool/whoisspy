@@ -186,7 +186,8 @@ for seat in sorted(causes):
         target = ask(seat, 开枪指令, candidates=存活).target
         落 gun.shoot {seat, target, text: 附带发言}        # target=0 → 放弃开枪
         落独白
-        若 target 存活且 == state.sheriff: badge_transfer(run, target)   # 被枪杀的警长移交
+        若 target 且 state.sheriff == target: badge_transfer(run, target)
+        # 被枪杀的警长也必须处理徽章（临终移交或撕毁，向已死者问询如遗言）
         # 被枪杀者：无遗言、不再触发其开枪（哪怕他也是猎人）
     若 state.sheriff == seat: badge_transfer(run, seat)    # 死者本人是警长
 
