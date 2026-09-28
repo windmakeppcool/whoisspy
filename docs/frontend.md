@@ -1,5 +1,8 @@
 # 前端（Vue 3 + TypeScript）
 
+> **⚠ 状态（D29）**：后端重写为 headless 对局引擎期间**前端暂不可用**（无 API/SSE）。
+> 代码保留不动；恢复方案见 [backend/14-migration.md](backend/14-migration.md) 与 [roadmap.md](roadmap.md)。
+
 观赛追更与历史复盘**共用同一渲染组件**（MatchStage）：两者都是「按 seq 消费事件流」，差别只在数据来源（SSE 增量 vs REST 回填）。规则全在后端，前端只做事件→ViewModel 投影。
 
 ## 路由

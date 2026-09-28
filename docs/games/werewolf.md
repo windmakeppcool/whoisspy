@@ -2,16 +2,18 @@
 
 > **单板收敛（D23）**：本项目只支持 standard-9 这一套板子（9 人 = 3 狼 + 预言家 + 女巫 + 猎人 + 3 民）。
 > 极简局、12 人局、守卫、狼王等配置已全部移除——配置面越小，出错面越小。
-> 新增板子前请先读 [game-plugin.md](../game-plugin.md) 与 [decisions.md](../decisions.md)。
+>
+> **本文是纯规则书**（面杀规则口径，后端重写后 D29）。引擎实现规格见：
+> [backend/02-flow.md](../backend/02-flow.md)（对局流程）、[backend/05-rules.md](../backend/05-rules.md)
+> （纯函数规则）、[backend/06-prompts.md](../backend/06-prompts.md)（prompt 切片与记忆行）。
 
-实现位置：
+实现位置（重写后）：
 
 | 文件 | 职责 |
 |---|---|
-| `backend/app/games/werewolf/rules.py` | 纯函数：板子校验、发牌、计票、定刀、夜间结算、胜负 |
-| `backend/app/games/werewolf/definition.py` | 状态机（`next_step`/`apply`）、动作 schema 与校验、可见性、记忆行、规则切片 |
-| `backend/app/games/werewolf/flow.py` | 步内流程（谁行动、怎么结算、写哪些事件）——engine 只提供 `StepContext` 原语 |
-| `backend/app/games/werewolf/prompts.py` | 规则切片文本（按步骤注入，D12） |
+| `backend/app/rules.py` | 纯函数：板子常量、发牌、计票、定刀、夜间结算、胜负、动作校验、中性兜底 |
+| `backend/app/flow.py` | 一局完整流程（谁行动、怎么结算、写哪些事件）——直排 async 代码 |
+| `backend/app/prompts.py` | 规则切片文本与指令模板 |
 
 ---
 
@@ -25,9 +27,9 @@
 | 猎人 | 好人 | 1 | 死亡时可开枪带走一人；**被毒死不能开枪** |
 | 平民 | 好人 | 3 | 无技能，靠发言与投票 |
 
-- 板子校验：`roles` 必须严格等于上述组合（多一个守卫/狼王、少一个平民都会被 422 拒绝）。
+- 板子即代码常量（`rules.py` 的 `ROLES`），不存在多板配置。
 - 可调项：`wolf_meeting_rounds`（狼队夜聊的**总调用次数**，默认 2 → 每狼 1 次频道发言 + 1 次收刀提案；
-  设 1 则只收刀）、`max_days`（天数上限，默认 8）。
+  设 1 则只收刀）、`max_days`（天数上限，默认 8）——CLI `--wolf-rounds` / `--max-days` 可覆盖。
 
 ## 二、夜间流程与结算
 
@@ -57,12 +59,12 @@ NIGHT_START（清空本夜动作收集）
 | 空刀（K 为 0/None） | 无人死于刀 → 平安夜 | — |
 
 - 毒优先级：`狼杀 > 女巫毒`——同刀同毒且未救时认定刀杀（可开枪）。
-- **空刀之夜无人死于刀**，女巫也无法对空刀口用药（`validate_action` 会把 save 降级为 pass，解药不被消耗）。
+- **空刀之夜无人死于刀**，女巫也无法对空刀口用药（动作校验会把 save 降级为 pass，解药不被消耗）。
 - 死因不对外公布：公开事件 `night.resolved` 只带死亡座位，死因另落 god 级 `night.death_cause`（复盘用）。
 
 ### 女巫的刀口信息
 
-解药尚在时，女巫行动请求会带上当晚刀口（`ActionRequest.prompt_extra` 渲染进指令层）；
+解药尚在时，女巫行动请求会带上当晚刀口（`prompt_extra` 渲染进指令层）；
 解药用尽则不再告知；空刀夜明确告知「解药无法使用」。
 
 ### 技能状态通知
@@ -70,7 +72,7 @@ NIGHT_START（清空本夜动作收集）
 夜序末尾向猎人发 `skill_state.notice`（仅本人可见）：`can_shoot` 由当晚死因决定
 （被毒死为 false）。
 
-## 三、警长竞选（仅第 1 天，夜末、死讯公布前，D21）
+## 三、警长竞选（仅第 1 天，夜末、死讯公布前，D20/D21）
 
 1. 全体并行选择是否上警。
 2. 恰 1 人上警：自动当选；无人上警或全员上警：**警徽丢失**。
@@ -106,7 +108,7 @@ NIGHT_START（清空本夜动作收集）
 
 ### 死亡结算链
 
-夜死与放逐共用一个链条（`flow._resolve_chain`）：**只有本轮真实发生死亡（存活→死亡）的座位**才触发开枪/移交，
+夜死与放逐共用一个链条（`flow.resolve_deaths`）：**只有本轮真实发生死亡（存活→死亡）的座位**才触发开枪/移交，
 且被枪杀者不连锁。放逐链另用 `last_exile_was_alive`（投票前的存活标记）守门——
 幻觉座位或「本就已死」的座位不会被写入 `alive` 表，也不会重复发遗言/刷枪。
 
@@ -125,54 +127,7 @@ NIGHT_START（清空本夜动作收集）
 > 时限条件是「`day >= max_days` 且第 `max_days` 天的放逐结算已结束」，
 > 不会出现「第 8 天白天还没打就判狼胜」。
 
-## 六、规则切片（按步骤注入，D12）
-
-| 切片键 | 内容 | 注入时机 |
-|---|---|---|
-| `overview` | 阵营、人数、胜负条件、240 字上限 | 每次调用（稳定段） |
-| `night_wolf` | 频道礼仪、定刀多数决、空刀语义 | `wolf_meeting` / `closing` |
-| `night_seer` | 查验语义与保密义务 | `seer_check` |
-| `night_witch` | 双药各一、每晚一瓶、刀口信息、不挡毒 | `witch_turn` |
-| `gun_skill` | 开枪条件（非毒死）、不连锁 | `gun` |
-| `sheriff_elect` | 上警/宣言/投票/PK/丢徽 | `sheriff_elect` / `sheriff_register` |
-| `sheriff_power` | 2 票权重、归票、移交/撕毁、定序 | `speech_order` / `day_speech` / `day_vote` / `badge` |
-| `day_speech` | 发言秩序与上限 | `day_speech` / `serial_speech` / `last_words` |
-| `day_vote` | 投票资格、平票 PK、遗言 | `day_vote` / `ballot` / `exile_resolve` |
-
-## 七、记忆层投影（`definition.memory_line`）
-
-记忆层是「本座可见事件的历史投影」，**凡本座可见的事件都必须有落点**（D26）：
-
-| 事件 | 记忆行 |
-|---|---|
-| `player.speech` / `channel.message` / `player.last_words` | `<speech seat="n">…</speech>` 围栏包裹（遗言加「（遗言）」前缀；内容里的尖括号与行首 `#` 会被中和，防注入） |
-| `phase.started` | `【第 N 天·阶段中文名】` |
-| `day.speech_order` | `本轮发言顺序：2 号→3 号→…。` |
-| `match.started` / `match.finished` | `对局开始。` / `对局结束：好人阵营获胜（原因）。` |
-| `night.resolved` | `第 N 夜：X 号 死亡。` / `平安夜，无人死亡。` |
-| `night.seer_result` | `你查验了 X 号玩家：阵营是【狼人/好人】。` |
-| `vote.cast` | `X 号投给了 Y 号。` / `X 号弃票。` |
-| `vote.resolved`（scope=exile） | `第 N 天放逐投票：X 号出局。` / `平票，无人出局。` |
-| `vote.resolved`（scope=sheriff） | `警长投票结果：X 号当选警长。` / 平票 |
-| `sheriff.registered` | `上警报名：…` / `无人上警。` |
-| `sheriff.badge` | `警徽归属：X 号。` / `警徽被撕毁，本局再无警长。` |
-| `gun.shoot` | `X 号开枪带走了 Y 号。` / `放弃开枪` |
-| `skill_state.notice` | `你的技能状态：可以/不能开枪。` |
-
-刻意不落点（信息已由其它层给出，重复只会灌水）：`role.dealt`（身份层已声明角色）、
-`night.started`（紧随的 `phase.started` 已给「第 N 天·入夜」）、`match.created`（`match.started` 覆盖）。
-
-## 八、可见性（`definition.visibility` 是唯一权威）
-
-| 事件 | 可见性 |
-|---|---|
-| `night.kill_target` / `night.witch_action` / `night.death_cause` / `channel.round.*` / `player.monologue` / `player.fallback` | god |
-| `channel.message` | seat = 存活狼队成员 |
-| `night.seer_result` | seat = 预言家本人 |
-| `skill_state.notice` / `role.dealt` | seat = 本人 |
-| `player.speech` / `player.last_words` / `night.resolved` / `vote.*` / `gun.shoot` / `sheriff.*` / `day.speech_order` / `match.*` / `phase.*` | public |
-
-## 九、待确认（按面杀惯例暂定，用 ※ 标记）
+## 六、待确认（按面杀惯例暂定，用 ※ 标记）
 
 1. 同刀同毒的死因认定（※ 未救按刀杀可开枪、已救按毒杀不可开枪）。
 2. 女巫刀口信息时机的原文歧义（※ 按「用药时知晓，解药用尽后不再告知」落地）。

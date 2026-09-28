@@ -19,6 +19,10 @@ backend/pytest-of-*/
 backend/tmp*/
 backend/match-*-dialog.json
 
+# headless 后端产物：导出对话、trace 留痕
+backend/exports/
+backend/trace*/
+
 # Node
 node_modules/
 dist/
