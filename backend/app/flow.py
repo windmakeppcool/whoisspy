@@ -31,6 +31,7 @@ from app.rules import (
     DEATH_POISON,
     GUN_ROLES,
     MAX_DAYS,
+    ROLES,
     WOLF_MEETING_ROUNDS,
     WOLF_ROLES,
     check_winner,
@@ -73,6 +74,7 @@ class MatchRun:
     max_calls: int = 600  # 单局调用数护栏（触发即 stopped）
     max_days: int = MAX_DAYS
     wolf_meeting_rounds: int = WOLF_MEETING_ROUNDS
+    model_assignments: list[dict[str, Any]] = field(default_factory=list)
     trace: TraceRecorder | None = None
     rng: Random = field(init=False)
     events: list[Event] = field(default_factory=list, init=False, repr=False)
@@ -108,10 +110,11 @@ class MatchRun:
 
     async def ask(self, seat_no: int, spec: AskSpec, purpose: str,
                   phase: str | None = None) -> tuple[dict[str, Any], AgentReply, bool]:
-        """向一个座位发起一次调用（含校验/兜底）；护栏计数。"""
-        self._calls += 1
-        if self._calls > self.max_calls:
-            raise _Stopped(f"LLM 调用数超限（>{self.max_calls}）")
+        """向一个座位发起一次调用（含校验/兜底）；护栏计数（锁内原子）。"""
+        async with self._emit_lock:
+            self._calls += 1
+            if self._calls > self.max_calls:
+                raise _Stopped(f"LLM 调用数超限（>{self.max_calls}）")
         return await agent_ask(self.gateway, self.state, self._seat_cfg(seat_no),
                                self.events, seat_no, spec, purpose,
                                phase or self.state.phase, self.emit, self.match_id)
@@ -367,3 +370,150 @@ async def _badge_transfer(run: MatchRun, actor: int) -> None:
     else:
         await run.emit("sheriff.badge", {"action": "destroy"})
     await run.monologue(actor, resp)
+
+
+# ---------- 白天 ----------
+
+async def day_phase(run: MatchRun) -> None:
+    """定序 → 发言 → 放逐投票 → 放逐结算（02-flow 四）。"""
+    await _speech_order(run)
+    await _day_speech(run)
+    await _day_vote(run)
+    await _exile_resolve(run)
+
+
+async def _speech_order(run: MatchRun) -> None:
+    """发言定序：警长指定首位，否则 rng；按座位升序环绕。"""
+    await run.phase("speech_order")
+    state = run.state
+    alive = _alive(state)
+    start: int | None = None
+    decided_by = "rng"
+    sheriff = state.sheriff
+    if sheriff and state.alive.get(sheriff):
+        spec = speech_order_spec(alive)
+        action, resp, _f = await run.ask(sheriff, spec, "speech_order", "speech_order")
+        target = int(action.get("target") or 0)
+        if target in alive:
+            start, decided_by = target, "sheriff"
+        await run.monologue(sheriff, resp)
+    if start is None:
+        start = run.rng.choice(alive) if alive else 0
+    await run.emit("day.speech_order",
+                   {"order": _rotate(alive, start), "start": start,
+                    "decided_by": decided_by})
+
+
+async def _day_speech(run: MatchRun) -> None:
+    """按定序结果依次发言（严格串行，观赛节奏感来源）。"""
+    await run.phase("day_speech")
+    state = run.state
+    order = state.speech_order or _alive(state)
+    spec = speech_spec("speech")
+    for seat_no in order:
+        if not state.alive.get(seat_no):
+            continue  # 防御：中途死亡（正常流程不会发生）
+        await run.speak(seat_no, spec, "speech", phase="day_speech")
+
+
+async def _day_vote(run: MatchRun) -> None:
+    """放逐投票：并行收票 → 计票（警长 2 票权重）→ vote.resolved（scope=exile）。"""
+    await run.phase("day_vote")
+    state = run.state
+    alive = _alive(state)
+    votes = await run.ballot(alive, alive, title="放逐投票",
+                             purpose="vote", phase="day_vote")
+    tally = tally_votes(votes, sheriff=state.sheriff)
+    await run.emit("vote.resolved", {"votes": votes, "title": "放逐投票",
+                                     "scope": "exile", "sheriff": state.sheriff,
+                                     **tally})
+
+
+async def _exile_resolve(run: MatchRun) -> None:
+    """放逐结算：平票 → PK（平票者再发言 + 其余全体重投）→ 遗言 → 开枪/警徽链。"""
+    await run.phase("exile_resolve")
+    state = run.state
+    exile = state.last_exile
+    if exile is None and state.last_exile_tied:
+        tied = [s for s in state.last_exile_tied if state.alive.get(s)]
+        if tied:
+            pk_spec = speech_spec("pk_speech")
+            for seat_no in tied:  # PK 发言（串行）
+                await run.speak(seat_no, pk_spec, "pk_speech", phase="serial_speech")
+            pk_voters = [s for s in _alive(state) if s not in tied]
+            pk_votes = await run.ballot(pk_voters, tied, title="放逐 PK 投票",
+                                        purpose="vote", phase="ballot")
+            pk_tally = tally_votes(pk_votes, sheriff=state.sheriff)
+            await run.emit("vote.resolved", {"votes": pk_votes, "title": "放逐 PK 投票",
+                                             "scope": "exile", **pk_tally})
+            exile = pk_tally["exiled"]  # 再平票 → None → 平安日
+    if not exile or not state.last_exile_was_alive:
+        return  # 平安日 / 已死守门（D28.6）
+    spec = speech_spec("last_words")
+    _a, resp, _f = await run.ask(exile, spec, "last_words", "last_words")
+    await run.emit("player.last_words", {"seat": exile,
+                                         "text": truncate_speech(resp.speech)})
+    await run.monologue(exile, resp)
+    await resolve_deaths(run, {exile: "exile"})
+
+
+# ---------- 开局与主循环 ----------
+
+async def _deal(run: MatchRun) -> None:
+    """发牌：写座位角色 + 逐座位 role.dealt（仅本人可见）+ 建初始状态。"""
+    roles = deal(run.seed)
+    await run.store.set_seat_roles(run.match_id, roles)
+    for seat_no, role in roles.items():
+        await run.emit("role.dealt", {"seat": seat_no, "role": role}, seat(seat_no))
+        run.seats.setdefault(seat_no, {})["role"] = role
+    run.state.roles = roles
+    run.state.alive = {s: True for s in roles}
+
+
+async def run_match(run: MatchRun) -> GameResult | None:
+    """驱动一局（02-flow 二）：created → started → 发牌 → 夜/昼循环 → finished/stopped。
+
+    返回 GameResult = 分出胜负；None = 被终止（超限/流程异常），reason 写入 match.stopped。
+    """
+    await run.emit("match.created", {
+        "seed": run.seed, "roles": dict(ROLES),
+        "wolf_meeting_rounds": run.wolf_meeting_rounds, "max_days": run.max_days,
+        "model_assignments": run.model_assignments})
+    await run.emit("match.started", {"seed": run.seed})
+    await _deal(run)
+
+    result: GameResult | None = None
+    stop_reason: str | None = None
+    try:
+        while True:
+            await night_phase(run)
+            result = check_winner(run.state, day_cycle_done=False,
+                                  max_days=run.max_days)
+            if result is not None:
+                break
+            await day_phase(run)
+            result = check_winner(run.state, day_cycle_done=True,
+                                  max_days=run.max_days)
+            if result is not None:
+                break
+    except _Stopped as e:
+        stop_reason = e.reason
+    except Exception as e:  # 流程异常：记 rule.error，绝不静默吞掉
+        log.exception("对局流程异常")
+        await run.emit("rule.error",
+                       {"phase": run.state.phase, "reason": str(e)[:200]}, god())
+        stop_reason = f"流程异常：{type(e).__name__}: {str(e)[:100]}"
+
+    if result is not None:
+        run.state.winner = result
+        await run.emit("match.finished", {"winner": result.winner,
+                                          "reason": result.reason})
+        await run.store.finalize_match(run.match_id, "finished",
+                                       {"winner": result.winner,
+                                        "reason": result.reason})
+        return result
+    reason = stop_reason or "对局终止"
+    await run.emit("match.stopped", {"reason": reason})
+    await run.store.finalize_match(run.match_id, "stopped",
+                                   {"winner": None, "reason": reason})
+    return None
