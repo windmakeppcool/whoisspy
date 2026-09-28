@@ -66,12 +66,13 @@ def build_user_prompt(*, rule_slices: dict[str, str], step_slices: dict[str, str
     if step_slices:
         instr.append("\n".join(step_slices.values()))  # 6a 本步规则切片
     instr.append(f"## 当前任务\n{request.prompt}")  # 6b 动作指令
+    instr.append(f"动作类型：{request.action_type}")  # 6c 期望动作声明（mock 反解依据）
     if request.candidates:
-        instr.append(f"合法目标座位：{sorted(request.candidates)}")  # 6c 候选集
+        instr.append(f"合法目标座位：{sorted(request.candidates)}")  # 6d 候选集
     if request.prompt_extra:
-        instr.append(request.prompt_extra)  # 6d 附加语义
-    instr.append(OUTPUT_SCHEMA)  # 6e 输出协议
-    instr.append(ANTI_INJECTION)  # 6f 防注入声明
+        instr.append(request.prompt_extra)  # 6e 附加语义
+    instr.append(OUTPUT_SCHEMA)  # 6f 输出协议
+    instr.append(ANTI_INJECTION)  # 6g 防注入声明
     parts.append("\n".join(instr))
     return "\n\n".join(parts)
 
