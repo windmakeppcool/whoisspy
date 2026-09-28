@@ -80,6 +80,8 @@ class MatchRun:
     events: list[Event] = field(default_factory=list, init=False, repr=False)
     _calls: int = field(default=0, init=False, repr=False)
     _emit_lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False, repr=False)
+    on_event: Callable[[Event], None] | None = field(default=None, init=False, repr=False)
+    # 事件直播钩子（CLI 终端逐行打印；与对局语义无关）
 
     def __post_init__(self) -> None:
         self.rng = Random(self.seed)
@@ -103,6 +105,8 @@ class MatchRun:
             if self.trace is not None:
                 self.trace.write({"t": "event", "event": {
                     "seq": ev.seq, "type": ev.type, "payload": ev.payload}})
+            if self.on_event is not None:
+                self.on_event(ev)
         return ev
 
     def _seat_cfg(self, seat_no: int) -> dict[str, Any]:
