@@ -1,4 +1,7 @@
-# 14 删除与落地顺序（migration）
+# 14 删除与落地记录（migration）
+
+> **✅ 已执行完成（2026-09-25）**：本节全部步骤已按序落地并推送（`main` 分支）。
+> 落地过程中的实际偏差与防御性修复见文末「执行记录」；前端处置仍生效（暂不可用）。
 
 > 本文档批准后执行。此前**旧代码与旧文档保持原样**（本文档集描述的是目标态）。
 
@@ -63,3 +66,21 @@
 
 删除提交之后若要回滚：`git revert` 删除提交即可恢复旧实现与旧文档（decisions.md 追加
 条目说明回滚原因）；`backend/data/` 未动，无数据损失。
+
+## 五、执行记录（2026-09-25 落地偏差）
+
+1. 文档规格提交（`fc2b4c3`）→ 清空提交（`1297133`）→ 12 步实现提交按序落地（`a13c188` … `7258d16`）。
+2. **并发 emit 锁**：并行收票时多个 `ask` 交错调用 `emit`，`seq = len(events)+1` 分配与落库
+   不原子 → 撞 `UNIQUE(match_id, seq)`。修复：`MatchRun._emit_lock` 内完成「分配 seq → INSERT
+   → 归约」（`flow.emit`），保证单写者语义（10-storage 的「调用方分配 seq」以锁为前提）。
+3. **channel.message 可见性**：频道发言必须标注 `vis=seat(狼队成员)`——`speak(channel=True)`
+   增加 `vis` 参数，狼聊调用处传狼队成员集。
+4. **被枪杀的警长必须处理徽章**：死亡链中「开枪打中警长」也要走移交/撕毁（规格 02-flow 已修正，
+   原「target 存活」条件删除）。
+5. **旧库防御**：`backend/data/whoisspy.db` 是 SQLModel 时代旧库（match 无 seed 列），
+   `CREATE TABLE IF NOT EXISTS` 不重建已存在表 → `Store.init` 增加 `PRAGMA table_info` 检查，
+   检测到旧库抛清晰错误（`test_store` 锁死）；本地旧库改名 `whoisspy-legacy.db` 留档。
+6. **stdout 编码**：Windows 控制台默认 GBK，直播行（emoji/中文）需 `PYTHONIOENCODING=utf-8`
+   或 `sys.stdout.reconfigure(encoding="utf-8")`——README 运行入口处注明。
+7. 验收：后端 `203 passed`；e2e 确定性（同 seed 逐字节复现）、耗时 <5s、胜负双覆盖、护栏全绿；
+   `--mock --seed 42` 冒烟完整跑通（81 次调用 / 0 兜底 / 好人胜 / 导出与 trace 正常）。

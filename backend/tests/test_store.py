@@ -31,6 +31,20 @@ async def test_init幂等(tmp_path):
     await s2.close()
 
 
+async def test_旧版数据库拒绝启动(tmp_path):
+    """旧 SQLModel 时代库（match 无 seed 列）→ 清晰报错而非难懂的 sqlite 错误。"""
+    import aiosqlite
+
+    db = tmp_path / "legacy.db"
+    conn = await aiosqlite.connect(str(db))
+    await conn.execute(
+        "CREATE TABLE match (id INTEGER PRIMARY KEY, game_type TEXT, status TEXT)")
+    await conn.commit()
+    await conn.close()
+    with pytest.raises(ValueError, match="旧版"):
+        await Store.init(str(db))
+
+
 async def test_create_match与座位快照(tmp_path):
     store = await _store(tmp_path)
     mid = await store.create_match(

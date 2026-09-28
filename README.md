@@ -33,8 +33,9 @@
 
 ```bash
 cd backend
-python -m app.main --mock --seed 42          # mock 跑一局（确定性）
-python -m app.main --real [--model M]        # 真实 LLM 跑一局（需 providers.json + .env）
+$env:PYTHONIOENCODING = "utf-8"          # Windows 控制台默认 GBK，直播行需 UTF-8
+python -m app.main --mock --seed 42      # mock 跑一局（确定性）
+python -m app.main --real [--model M]    # 真实 LLM 跑一局（需 providers.json + .env）
 ```
 
 参数与输出形态见 [backend/12-cli.md](backend/12-cli.md)；配置见 [backend/09-config.md](backend/09-config.md)。

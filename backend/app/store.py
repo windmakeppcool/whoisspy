@@ -70,12 +70,28 @@ class Store:
 
     @classmethod
     async def init(cls, db_path: str) -> "Store":
-        """建库建表（幂等），返回连接。"""
+        """建库建表（幂等），返回连接。
+
+        旧版（SQLModel 时代）数据库不迁移：检测到 match 表缺 seed 列时
+        抛清晰错误，提示删除旧库后重跑（14-migration 一）。
+        """
         conn = await aiosqlite.connect(db_path)
         for ddl in _DDL:
             await conn.execute(ddl)
         await conn.commit()
+        await cls._check_schema(conn)
         return cls(conn)
+
+    @staticmethod
+    async def _check_schema(conn: aiosqlite.Connection) -> None:
+        """旧库防御：match 表必须含 seed 列（旧 schema 缺失会报难以理解的错误）。"""
+        cur = await conn.execute("PRAGMA table_info(match)")
+        rows = await cur.fetchall()
+        cols = {r[1] for r in rows}
+        if "seed" not in cols:
+            raise ValueError(
+                "检测到旧版（SQLModel 时代）whoisspy.db：表结构不兼容且不迁移。"
+                "请删除该数据库文件后重跑（或改名留档，见 docs/backend/14-migration.md）。")
 
     async def close(self) -> None:
         await self._conn.close()
