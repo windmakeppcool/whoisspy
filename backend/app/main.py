@@ -58,7 +58,7 @@ def _mock_seats(n_players: int = 9) -> list[dict[str, Any]]:
 def _real_seats(args: argparse.Namespace,
                 base: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """真实模式：加载配置 + key 预检 + 座位构建（persona 绑定 > 池内随机）。"""
-    load_env_file(str(base / "app" / ".env"))
+    load_env_file(str(base / "data" / ".env"))
     providers = load_providers(str(base / "data" / "providers.json"))
     personas = load_personas(str(base / "data" / "personas.json"))
     seats, assignments = build_seats(
