@@ -244,3 +244,69 @@
 - **影响**：`definition.validate_action` 增候选集分支；`protocol.fence_memory` 增 `_sanitize_speech`；
   `gateway.ask_json` 修复分支增可重试兜底；`runner._ask` 拆出插件错误路径；`storage/repo.py` 增迁移诊断；
   新增 `tests/test_adversarial_regressions.py` 锁死这 5 条。
+
+## D29 后端推倒重写为单进程 headless 对局引擎（2026-09-25）
+
+- **背景**：现架构三重病灶——①抽象过重不利 debug：engine 与插件经 `StepContext`/Protocol
+  互相间接、handler 按字符串注册在运行时 dict，无法静态跳转，看不到「谁在驱动谁」；
+  ②观赛投影四处漂移：同一份「事件→人话」在插件 memory_line / TUI viewmodel / 前端 project.ts /
+  export dialog.py 各写一遍，已发散出守卫死代码、阶段标签不一致、可见性客户端重复过滤；
+  ③观测断层：`llm_call` 不存 prompt/响应原文、并行收票的落库序随网络延迟变化（同 seed 重跑
+  事件序不同，「重跑对比」调试法失效）、状态藏在 `state.extra` 私有字典里。
+- **决策**：删除全部后端，重建**只做游戏流程 + 记录 + 导出**的单进程 CLI 引擎：
+  真实+mock 双模式、SQLite 事件表、对话 JSON 导出；FastAPI/SSE/TUI/回放工具/多游戏抽象
+  本次全部不做。文档先行：完整规格在 [backend/](backend/00-overview.md)（00–14 共 15 份），
+  批准后按 [14-migration.md](backend/14-migration.md) 落地。
+- **备选**：渐进重构（否决——保留任何一层旧分层都会拖住新形态，且旧层的修复投入没有回报）；
+  保留 HTTP 层只重写内核（否决——先聚焦游戏正确性与可调试性，API 等内核稳定后按新教训重建）。
+- **影响**：前端暂时不可用（roadmap 记「重建最小 API」）；providers/personas/.env 配置原样沿用；
+  旧 whoisspy.db 不迁移（改名留档）。
+
+## D30 重写保留的架构资产（2026-09-25）
+
+- **背景**：推倒重写不等于否定全部旧设计；下列资产经过 355 个测试与真实局验证，是重写后仍成立的
+  不变量，丢弃只会重造一遍并重踩已修复的 bug。
+- **决策**：原样沿用——append-only 事件流 + reducer（状态只能由 `apply` 改）；事件级可见性
+  public/seat/god 随事件落库、出站单点过滤；种子随机且随机决策写入事件 payload；prompt 六层
+  与前缀缓存层序；`<speech>` 围栏防注入；每动作类型的**中性兜底**；openai 异常族重试与
+  token/费用计量；座位级接入快照固化。
+- **备选**：连这些一起推倒（否决，理由如上）。
+- **影响**：语义细节分散固化在 `docs/backend/` 各规格文档，[00-overview.md](backend/00-overview.md)
+  附「保留资产/丢弃包袱」与旧模块→新模块对照表。
+
+## D31 确定性与可观测成为一等需求（2026-09-25）
+
+- **背景**：旧系统出问题后既不能复现（并行 `gather` 完成序决定 `vote.cast` 落库顺序）也不能回看
+  （无法重建当时的六层 prompt 原文）。
+- **决策**：①并行收票/收刀改为「并行收集、**按座位升序落事件**」；②mock 模式同 seed 全事件流
+  **逐字节复现**（e2e 测试锁死）；③`--trace DIR` 落每次调用的完整 prompt/原始响应/解析结果
+  JSONL（含每阶段末的状态快照）；④`phase.started` 事件携带中文 `label`（投影层不再各自维护
+  阶段名映射表——旧三处 PHASE_LABELS 漂移的根治）；⑤`GameState` 全字段类型化并提供
+  `snapshot()`。
+- **备选**：只靠日志排查（否决——日志重建不了 prompt 原文与并行交错序）。
+- **影响**：`llm_call` 表仍只存数字摘要，原文只在 trace 文件（DB 面向统计、trace 面向排障）；
+  导出 JSON 的 usage 块新增 `fallbacks/rule_errors` 计数（「全兜底假局」一眼可见）。
+
+## D32 丢弃多游戏插件抽象与 HTTP 层（2026-09-25）
+
+- **背景**：只有一个游戏，GameDefinition/StepContext/registry/boards.json 与 engine/games 的
+  边界架构测试是纯间接成本；SQLModel/SQLAlchemy 对 4 张表 6 个查询是过重依赖；
+  FastAPI/SSE 在「跑一局+导出」的范围外。
+- **决策**：游戏即代码——standard-9 写死为 `rules.py` 常量（boards.json 退出）；
+  `flow.py` 直排 import rules/state/agent（无 Protocol、无运行时注册表）；
+  存储改裸 `aiosqlite`（手写幂等 DDL，SQL 可读可打印）；未来真要加第二游戏或重建 API 时，
+  按届时的教训重新设计，不预设抽象。
+- **备选**：保留插件壳只塞一个游戏（否决——这正是本次要拆的病灶）。
+- **影响**：CLAUDE.md 开发规则 5/6 随之改写；`tests/test_architecture.py`（engine 无游戏痕迹
+  检查）随插件系统退役，边界改由「游戏语义只准出现在 rules/prompts/memory/present/flow」的
+  模块依赖规则承担（[01-structure.md](backend/01-structure.md)）。
+
+## D33 观赛与记忆投影单一归属（2026-09-25）
+
+- **背景**：同一份「事件→人话」存在 4 份实现且互相漂移（见 D29 背景②）。
+- **决策**：agent 记忆行唯一渲染处 `memory.py`；观赛文案唯一渲染处 `present.py`——导出 JSON 与
+  CLI 终端直播共用后者；任何客户端/导出代码不得自带事件解释逻辑；旧 `plugin.error` 事件更名为
+  `rule.error`（插件系统已不存在）。
+- **备选**：事件直接携带渲染文本（否决——把展示格式冻结进事实源，措辞调整就要改库）。
+- **影响**：TUI 删除；前端投影层将来接最小 API 时改为消费服务端投影（或按
+  [11-export.md](backend/11-export.md) 的 Line 结构重建），不再复制游戏语义。

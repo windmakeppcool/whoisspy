@@ -4,6 +4,9 @@
 
 设计文档在 `docs/`（长期维护，按功能域拆分），细节以文档为准：
 
+- **⚠ 后端重写（进行中，D29）**：旧后端将整体删除，重建为 headless 对局引擎；规格见
+  [docs/backend/](docs/backend/00-overview.md)（00–14），落地顺序见
+  [docs/backend/14-migration.md](docs/backend/14-migration.md)。批准实施前旧代码保持原样。
 - 架构总览与扩展约定：[README.md](README.md)、[docs/architecture.md](docs/architecture.md)
 - Agent/LLM（座位级接入、prompt 分层）：[docs/agents-and-llm.md](docs/agents-and-llm.md)
 - 游戏插件契约（新增游戏看这里）：[docs/game-plugin.md](docs/game-plugin.md)、[docs/games/werewolf.md](docs/games/werewolf.md)
