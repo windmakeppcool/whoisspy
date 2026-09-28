@@ -9,7 +9,6 @@
 - 后端规格（唯一权威）：[docs/backend/00-overview.md](docs/backend/00-overview.md)（00–14 分册：
   结构/流程/事件/状态/规则/prompt/agent/llm/配置/存储/导出/CLI/测试/落地记录）
 - 游戏规则书：[docs/games/werewolf.md](docs/games/werewolf.md)（规则口径唯一权威）
-- 决策记录（变更须追加）：[docs/decisions.md](docs/decisions.md)
 - 前端/视觉/路线图：[docs/frontend.md](docs/frontend.md) · [docs/frontend-design.md](docs/frontend-design.md) · [docs/roadmap.md](docs/roadmap.md)
 
 ## 开发规则
