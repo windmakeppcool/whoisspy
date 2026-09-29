@@ -20,8 +20,12 @@
 
 ## 后端重写相关（D29）
 
-- **重建最小 API（支撑前端）**：后端重写完成后，为前端重建 REST + SSE——只做建局/事件回放/直播
-  三件事，先写 API 规格（见 [backend/14-migration.md](backend/14-migration.md) 第三节）。
+- **前端展示框架（静态复盘直读）**：**已实施**（[frontend.md](frontend.md) +
+  [backend/11-export.md](backend/11-export.md) 五）——导出 v2 + 前端静态导出源/本地文件
+  复盘，零服务；直播/建局仍留待最小 API。
+- **重建最小 API（直播与建局）**：REST + SSE，复用同一展示文档契约（直播帧 = 文档的增量
+  分解，边界见 [frontend.md](frontend.md) 第八节）；启动时先写 API 规格，不复活旧
+  `api/app.py`（见 [backend/14-migration.md](backend/14-migration.md) 第三节）。
 - 回放/分叉重跑工具：事件表天然支持，未来需要时再加。
 
 ## 工程扩展

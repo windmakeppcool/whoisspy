@@ -24,7 +24,7 @@
 | [backend/13-testing.md](backend/13-testing.md) | 测试策略与验收基线（TDD） | 改测试策略 |
 | [backend/14-migration.md](backend/14-migration.md) | 重写落地记录：删除清单、提交序列、前端处置 | 重写完成时归档 |
 | [games/werewolf.md](games/werewolf.md) | 狼人杀**纯规则书**（规则口径唯一权威） | 改狼人杀规则 |
-| [frontend.md](frontend.md) | 前端（重写期间暂不可用） | 重建最小 API 时 |
+| [frontend.md](frontend.md) | 前端展示框架：纯渲染器 + 静态导出直读复盘（已实施） | 改前端结构/数据层时 |
 | [frontend-design.md](frontend-design.md) | 视觉设计规范（唯一权威）：配色/字体/布局/组件形态 | 改视觉 |
 | [decisions.md](decisions.md) | 关键决策记录（背景、决策、备选、影响） | **任何设计决策变更时追加条目** |
 | [roadmap.md](roadmap.md) | 暂缓项与后续方向 | 某项启动时移入对应文档展开 |

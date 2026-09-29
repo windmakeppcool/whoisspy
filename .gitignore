@@ -16,7 +16,7 @@ venv/
 
 # 测试/临时产物（TEMP 指向工作目录时 pytest/脚本会落在仓库里）
 backend/pytest-of-*/
-backend/tmp*/
+backend/tmp*
 backend/match-*-dialog.json
 
 # headless 后端产物：导出对话、trace 留痕

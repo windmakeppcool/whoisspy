@@ -1,7 +1,8 @@
 # whoisspy 后端
 
 单进程 **headless 对局引擎**（D29）：跑一局标准 9 人狼人杀（mock 或真实 LLM）→
-事件全量落 SQLite → 导出对话 JSON。无 HTTP 服务；前端因后端重写暂不可用（代码保留）。
+事件全量落 SQLite → 导出对话 JSON（双视角 + 对局索引）。无 HTTP 服务；
+前端展示框架已落地（静态导出直读复盘，见 [../docs/frontend.md](../docs/frontend.md)）。
 
 设计文档在 [`../docs/backend/`](../docs/backend/00-overview.md)（00–14 分册，细节以文档为准），本文只讲**怎么跑起来**。
 
@@ -65,7 +66,7 @@ python -m app.main --real --model mimo-v2.6-pro   # 随机池收窄为单模型
 |---|---|---|
 | `--seed N` | 当前时间 | 随机种子（发牌/决胜/定序/模型分配） |
 | `--out PATH` | `exports/match-<id>-god.json` | 导出对话 JSON（复盘/归档） |
-| `--view god\|public` | `god` | 导出视角：god 全量 / public 只公开事件 |
+| `--view god\|public\|both` | `both` | 导出视角；缺省双视角文件 + `index.json`（配 `--out` 单文件时回落 god） |
 | `--trace DIR` | 关闭 | 调用留痕：每次 LLM 调用的完整 prompt/响应 JSONL（排障用） |
 | `--db PATH` | `data/whoisspy.db` | SQLite 路径 |
 | `--max-days N` / `--wolf-rounds N` | 8 / 2 | 规则可调项 |
@@ -85,7 +86,7 @@ python -m app.main --real --model mimo-v2.6-pro   # 随机池收窄为单模型
 ……
 🏁 对局结束：好人阵营获胜（狼人全部出局）
 用量：81 次调用 / 34007 tokens / ¥0.00（缓存命中 0%） / 兜底 0 次 / 规则异常 0 次
-导出：exports\match-1-god.json
+导出：exports\match-1-god.json、exports\match-1-public.json + index.json
 ```
 
 退出码：`0` 分出胜负 / `2` 被终止（Ctrl+C、调用数超限、流程异常）/ `3` 配置错误。
@@ -93,7 +94,7 @@ python -m app.main --real --model mimo-v2.6-pro   # 随机池收窄为单模型
 ## 跑测试
 
 ```bash
-python -m pytest tests/ -q           # 全量（当前 204 passed）
+python -m pytest tests/ -q           # 全量（当前 213 passed）
 python -m pytest tests/test_rules.py -q   # 单文件
 ```
 

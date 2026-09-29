@@ -20,7 +20,7 @@ backend/
     flow.py               # ★ 一局完整流程（直排 async 代码）+ MatchRun 原语（[02-flow.md](02-flow.md)）
     present.py            # 事件 → 观赛文案行（导出与终端直播唯一投影）（[11-export.md](11-export.md)）
     store.py              # SQLite 读写：match/match_seat/game_event/llm_call（[10-storage.md](10-storage.md)）
-    export.py             # 事件 → 分段对话 JSON（view 过滤 + present 渲染）（[11-export.md](11-export.md)）
+    export.py             # 事件 → 分段对话 JSON（view 过滤 + present 渲染；v2 增段末 stage 快照折算）（[11-export.md](11-export.md)）
   tests/                  # 见 [13-testing.md](13-testing.md)
 ```
 
@@ -34,7 +34,7 @@ backend/
 main ──► config ──► (llm | agent)          main ──► flow ──► export ──► present
 flow ──► agent ──► llm                      flow ──► state / rules / events / prompts / memory / store
 agent ──► memory / prompts / events / rules
-export ──► present / events
+export ──► present / events / state（v2 段末快照复用 reducer，见 [11-export.md](11-export.md) 五）
 store、llm ──►（各自 IO 边界，互不依赖）
 ```
 

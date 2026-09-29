@@ -18,7 +18,7 @@
 | `test_flow_night.py` | 狼聊轮次与串行记忆；空刀全链；无预言家/女巫跳过；猎人通知（被毒不能开枪）；死亡链（开枪/移徽/被枪杀者不连锁） |
 | `test_flow_day.py` | 警长选举全分支（无人/恰一/全员/首轮平票 PK/再平票丢徽）；定序（警长指定/无警长 rng/非法目标回落）；放逐平票 PK 与平安日；遗言；警长被放逐移徽 |
 | `test_flow_e2e.py` | mock 全局跑通多局（不同 seed 分别覆盖狼胜/好人胜）；**同 seed 两次运行事件 JSON 逐字节一致**（P3 验收）；护栏（假网关无限失败 → max_calls stopped） |
-| `test_export.py` | schema 完整性；view 过滤；分段（开局/夜/昼、警长竞选归当夜）；usage 块（fallbacks 计数） |
+| `test_export.py` | schema 完整性；view 过滤；分段（开局/夜/昼、警长竞选归当夜）；usage 块（fallbacks 计数）；**v2 增补（[11-export.md](11-export.md) 五）**：is_night 与分段一致、stage 快照手算一致（含开枪链/移徽）、tally 含警长 2 票、public 文档无 role 且 stage/votes 齐全、index.json 合并更新幂等 |
 | `test_cli.py` | 参数解析；mock 冒烟（进程内调用）；预检失败退出码 3 |
 
 ## 二、flow 测试的注入方式

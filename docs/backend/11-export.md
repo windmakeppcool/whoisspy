@@ -51,7 +51,9 @@ def present(ev: Event) -> Line | None: ...   # 纯函数；None = 不上屏
 - **god 视角**：全量事件；
 - **public 视角**：只保留 `vis.level == "public"` 的事件（狼队频道/夜晚操作/独白/兜底/发牌全不可见）。
 
-## 三、导出 JSON schema（export.py）
+## 三、导出 JSON schema v1（export.py，已实施）
+
+> v1 为已实施形态；**前端展示契约的 v2 增补见第五节**（已实施）。
 
 ```
 exports/match-<id>-<view>.json
@@ -94,3 +96,73 @@ exports/match-<id>-<view>.json
 
 跑局过程中每落一条事件，立即把 `present(ev)` 打到 stdout（god 视角、单行式，
 不整屏刷新——保留滚动历史便于盯流程）；导出文件是同一投影的持久化形态。
+
+## 五、展示文档 v2（前端复盘直读增补，**已实施**）
+
+前端展示框架（[../frontend.md](../frontend.md)）以导出 JSON 为**唯一展示契约**。v1 缺结构化
+舞台状态（昼夜 / 存活 / 警长 / 票型），前端只能从中文文案反推——正是 P5 要根治的路径。
+v2 **只增字段，不改不删**：v1 读者（人 / 脚本）不受影响。
+
+### 1. `segments[]` 增补
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `is_night` | bool | 段落昼夜，与分段同源（本文件 `NIGHT_PHASES` / [03-events.md](03-events.md) 二「夜/昼」列）；前端**禁止**从 label 反推 |
+| `stage` | `{alive: int[], sheriff: int \| null}` | **段末舞台快照**：存活座位集合与警长归属 |
+| `votes` | `VoteRound[]` | 段内结构化投票回合（警长选举 / 放逐 / PK 再投票各成一回合） |
+
+```jsonc
+// VoteRound
+{ "title": "放逐投票", "scope": "exile",     // exile | sheriff
+  "votes": { "3": 5, "5": 0 },               // 座位→目标，0=弃权；键经 JSON 为字符串，读取方 int() 归一（03-events 不变量 3）
+  "tally": { "5": 3, "7": 2 },               // 目标→票数，后端算好（弃权不计）
+  "exiled": 5, "tie": false }
+```
+
+计算归属（不新增解释逻辑）：
+
+- `tally` 口径与计票规则一致：**警长非零票 2 票权重、弃权不计**（复用 `rules.tally_votes`
+  口径，实现时可让其增返 `counts`，不另写一份计票）；
+- `stage` 折算：export 对**全量事件**（不过滤视角）逐条 `state.apply`，段边界取快照——
+  判死 / 警长只由 public 事件驱动，两视角快照一致，无泄漏；
+- `votes` 来源：`vote.resolved` payload 直通 + `tally` 计数。
+
+### 2. `match.seats[]` 增补
+
+| 字段 | 说明 |
+|---|---|
+| `persona_name` | 人设显示名（personas.json `name`；无配置回退 `persona_id`）。人设是公开信息；`role` 仍仅 god 视角 |
+| `persona_style` | 风格一句话（可选，tooltip 用） |
+
+### 3. 导出目录与对局索引（`exports/index.json`）
+
+```
+exports/
+  index.json                  # 对局索引（前端列表页数据源）
+  match-<id>-god.json
+  match-<id>-public.json
+```
+
+```jsonc
+{ "generated_at": "2026-…",
+  "matches": [
+    { "match_id": 2, "seed": 1790584663, "status": "finished",
+      "winner": "good", "reason": "狼人全部出局",
+      "player_count": 9, "exported_at": "2026-…",
+      "views": ["god", "public"] }      // 该局实际存在的导出文件
+  ] }
+```
+
+每次 CLI 导出后**合并更新**（同局覆盖）；`--out` 显式指定单文件时是归档用途，不更新索引
+（CLI 变化见 [12-cli.md](12-cli.md) 第四节）。
+
+### 4. 可见性与兼容
+
+- 新字段全部是 public 级信息（昼夜 / 存活 / 警长 / 票型 / 人设名），两视角都带；
+- v1 字段不动；v2 读者遇到 v1 文档应明确报「请用新版 CLI 重新导出」，不静默降级；
+- 依赖方向更新：`export ──► present / events / state`（[01-structure.md](01-structure.md)）。
+
+### 5. 测试锚点（`test_export` 增补）
+
+`is_night` 与分段一致；`stage` 快照与手算一致（含开枪链 / 移徽）；`tally` 含警长 2 票；
+public 视角文档无 `role` 且 `stage / votes` 齐全；`index.json` 合并更新幂等。
