@@ -1,9 +1,10 @@
 <script setup lang="ts">
-// 预览导演条：设计稿阶段驱动章节推进（真实实现将由 SSE 驱动，此条退役）
+// 段落导航条：章节胶囊 = 导出文档 segments；自动播放暂缓（roadmap）
 defineProps<{
   chapterIndex: number
   chapterLabels: string[]
-  autoplay: boolean
+  autoplay?: boolean
+  showAutoplay?: boolean
 }>()
 const emit = defineEmits<{
   (e: 'step', dir: 1 | -1): void
@@ -13,8 +14,8 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <footer class="director" aria-label="预览控制">
-    <button class="nav" aria-label="上一幕" @click="emit('step', -1)">‹</button>
+  <footer class="director" aria-label="段落导航">
+    <button class="nav" aria-label="上一段" @click="emit('step', -1)">‹</button>
     <div class="chapters">
       <button
         v-for="(label, i) in chapterLabels"
@@ -26,8 +27,13 @@ const emit = defineEmits<{
         {{ label }}
       </button>
     </div>
-    <button class="nav" aria-label="下一幕" @click="emit('step', 1)">›</button>
-    <button class="play" :class="{ on: autoplay }" @click="emit('toggle-autoplay')">
+    <button class="nav" aria-label="下一段" @click="emit('step', 1)">›</button>
+    <button
+      v-if="showAutoplay"
+      class="play"
+      :class="{ on: autoplay }"
+      @click="emit('toggle-autoplay')"
+    >
       {{ autoplay ? '⏸ 暂停' : '▶ 自动播放' }}
     </button>
   </footer>

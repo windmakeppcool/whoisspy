@@ -1,13 +1,13 @@
 <script setup lang="ts">
 // 阶段横幅：木牌样式，标明当前阶段与天数
-defineProps<{ phase: 'night' | 'day'; day: number; label: string }>()
+defineProps<{ phase: 'night' | 'day'; day: number; label: string; showDay?: boolean }>()
 </script>
 
 <template>
   <header class="banner" :class="phase">
     <span class="icon">{{ phase === 'night' ? '🌙' : '☀️' }}</span>
     <h1 class="title">{{ label }}</h1>
-    <span class="day-chip">
+    <span v-if="showDay !== false" class="day-chip">
       <span class="day-label">第</span>
       <span class="day-num">{{ day }}</span>
       <span class="day-label">{{ phase === 'night' ? '夜' : '天' }}</span>

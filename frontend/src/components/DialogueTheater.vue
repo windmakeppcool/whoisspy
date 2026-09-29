@@ -1,96 +1,140 @@
 <script setup lang="ts">
-// 中央对话剧场：系统旁白、公开发言、狼队频道（god）、遗言，底部自动跟随
-import { computed, ref, watch, nextTick } from 'vue'
-import type { DemoState, Seat } from '../model/types'
+// 中央对话剧场：整卷渲染全部段落，IntersectionObserver 上报当前段（纯渲染器，
+// 不做视角过滤——文档本身已按视角生成，狼队频道/独白只在 god 文档存在）
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import type { DisplaySegment } from '../model/display'
+import type { Seat } from '../model/types'
 
 const props = defineProps<{
-  state: DemoState
+  segments: DisplaySegment[]
   seats: Seat[]
-  godView: boolean
+}>()
+
+const emit = defineEmits<{
+  (e: 'segment-change', index: number): void
 }>()
 
 const scrollEl = ref<HTMLElement | null>(null)
+const sectionEls: (HTMLElement | null)[] = []
+let observer: IntersectionObserver | null = null
 
-const seatById = computed(() => {
-  const m = new Map<number, Seat>()
-  for (const s of props.seats) m.set(s.id, s)
-  return m
-})
+const seatById = new Map<number, Seat>(props.seats.map((s) => [s.id, s]))
 
-// 过滤：沉浸视角看不到狼队频道与内心独白
-const visibleFeed = computed(() =>
-  props.state.feed.filter((it) => {
-    if (it.kind === 'channel') return props.godView
-    if (it.monologue && !props.godView) return { ...it, monologue: undefined }
-    return true
-  }),
-)
-const visibleItems = computed(() =>
-  visibleFeed.value.map((it) => (props.godView ? it : { ...it, monologue: undefined })),
-)
+function bindSection(el: unknown, index: number) {
+  if (el instanceof HTMLElement) sectionEls[index] = el
+}
 
-const sheriffName = computed(() => {
-  if (props.state.sheriff == null) return null
-  return seatById.value.get(props.state.sheriff)?.name ?? null
-})
-
-const seatOf = (id?: number) => (id == null ? undefined : seatById.value.get(id))
+function observe() {
+  observer?.disconnect()
+  if (!scrollEl.value) return
+  observer = new IntersectionObserver(
+    (entries) => {
+      let best = -1
+      let bestRatio = 0
+      for (const en of entries) {
+        if (en.isIntersecting && en.intersectionRatio > bestRatio) {
+          bestRatio = en.intersectionRatio
+          best = Number((en.target as HTMLElement).dataset.seg)
+        }
+      }
+      if (best >= 0) emit('segment-change', best)
+    },
+    { root: scrollEl.value, threshold: [0.15, 0.4, 0.7] },
+  )
+  for (const el of sectionEls) if (el) observer.observe(el)
+}
 
 watch(
-  () => props.state.feed.length,
+  () => props.segments,
   async () => {
     await nextTick()
-    scrollEl.value?.scrollTo({ top: scrollEl.value.scrollHeight, behavior: 'smooth' })
+    observe()
   },
 )
+
+onMounted(async () => {
+  await nextTick()
+  observe()
+})
+onBeforeUnmount(() => observer?.disconnect())
+
+/** 段落导航滚动（DirectorBar 调用）。 */
+function scrollToSegment(index: number) {
+  const el = sectionEls[index]
+  if (el && scrollEl.value) {
+    scrollEl.value.scrollTo({ top: el.offsetTop, behavior: 'smooth' })
+  }
+}
+
+defineExpose({ scrollToSegment })
 </script>
 
 <template>
-  <section class="theater" aria-label="对局对话">
-    <div ref="scrollEl" class="feed">
-      <template v-for="(it, i) in visibleItems" :key="i">
-        <!-- 系统旁白 -->
-        <p v-if="it.kind === 'system'" class="narration">{{ it.text }}</p>
+  <section ref="scrollEl" class="theater" aria-label="对局对话">
+    <div
+      v-for="(seg, si) in segments"
+      :key="si"
+      class="seg"
+      :data-seg="si"
+      :ref="(el) => bindSection(el, si)"
+    >
+      <p class="seg-label">{{ seg.label }}</p>
+      <template v-for="(it, i) in seg.entries" :key="i">
+        <!-- 段内阶段分隔行 -->
+        <p v-if="it.kind === 'phase'" class="phase-divider">{{ it.text }}</p>
 
-        <!-- 发言气泡（含遗言样式） -->
-        <div
-          v-else-if="it.kind === 'speech' || it.kind === 'last_words'"
-          class="bubble-row"
-          :class="{ left: (seatOf(it.seat)?.side ?? 'L') === 'L', last: it.kind === 'last_words' }"
-        >
-          <span class="mini-avatar">{{ seatOf(it.seat)?.emoji }}</span>
-          <div class="bubble">
-            <p class="who">
-              {{ seatOf(it.seat)?.id }}号 · {{ seatOf(it.seat)?.name }}
-              <span v-if="it.kind === 'last_words'" class="tag last-tag">遗言</span>
-              <span v-if="sheriffName === seatOf(it.seat)?.name" class="tag sheriff-tag">警长</span>
-            </p>
-            <p class="text">{{ it.text }}</p>
-            <p v-if="it.monologue" class="mono">
-              <span class="mono-tag">内心</span>{{ it.monologue }}
-            </p>
-          </div>
+        <!-- 系统旁白 / 投票行 -->
+        <p v-else-if="it.kind === 'system' || it.kind === 'vote'" class="narration">
+          {{ it.text }}
+        </p>
+
+        <!-- 内心独白（仅 god 文档存在） -->
+        <div v-else-if="it.kind === 'monologue'" class="mono-card">
+          <span class="mono-tag">内心</span>
+          <p class="mono-text">{{ it.text }}</p>
         </div>
 
-        <!-- 狼队频道（仅上帝视角） -->
+        <!-- 狼队频道（仅 god 文档存在） -->
         <div v-else-if="it.kind === 'channel'" class="channel-row">
-          <div class="channel-bubble">
+          <span class="mini-avatar">{{ seatById.get(it.seat ?? -1)?.emoji }}</span>
+          <div class="bubble ch">
             <p class="who">
-              {{ seatOf(it.seat)?.emoji }} {{ seatOf(it.seat)?.id }}号 · {{ seatOf(it.seat)?.name }}
+              {{ seatById.get(it.seat ?? -1)?.name }}
               <span class="tag wolf-tag">狼队频道</span>
             </p>
             <p class="text">{{ it.text }}</p>
-            <p v-if="it.monologue" class="mono"><span class="mono-tag">内心</span>{{ it.monologue }}</p>
+          </div>
+        </div>
+
+        <!-- 发言 / 遗言气泡 -->
+        <div
+          v-else
+          class="bubble-row"
+          :class="{ left: (seatById.get(it.seat ?? -1)?.side ?? 'L') === 'L' }"
+        >
+          <span class="mini-avatar">{{ seatById.get(it.seat ?? -1)?.emoji }}</span>
+          <div class="bubble">
+            <p class="who">
+              {{ seatById.get(it.seat ?? -1)?.name }}
+              <span v-if="it.kind === 'last_words'" class="tag last-tag">遗言</span>
+              <span
+                v-if="it.seat != null && seg.stage.sheriff === it.seat"
+                class="tag sheriff-tag"
+              >警长</span>
+            </p>
+            <p class="text">{{ it.text }}</p>
           </div>
         </div>
       </template>
     </div>
+    <p v-if="!segments.length" class="narration">没有内容（导出为空）</p>
   </section>
 </template>
 
 <style scoped>
 .theater {
   min-height: 0;
+  flex: 1;
   display: flex;
   flex-direction: column;
   border: var(--border-w) solid var(--ink);
@@ -99,16 +143,35 @@ watch(
   box-shadow: var(--shadow-pop);
   overflow: hidden;
 }
-
-.feed {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px 18px 20px;
+.seg {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--paper-dim) transparent;
+  padding: 14px 18px 18px;
+  scroll-margin-top: 12px;
+}
+.seg + .seg {
+  border-top: 2px dashed #c9bd9a;
+}
+.seg-label {
+  align-self: center;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: #8a85a0;
+  padding: 2px 12px;
+  border: 2px solid #d8cfa9;
+  border-radius: 999px;
+  background: var(--paper-dim);
+}
+
+.phase-divider {
+  align-self: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #9b97a8;
+  letter-spacing: 0.05em;
 }
 
 .narration {
@@ -130,17 +193,8 @@ watch(
   gap: 9px;
   align-items: flex-end;
 }
-.bubble-row.right {
+.bubble-row.left {
   flex-direction: row-reverse;
-}
-.bubble-row.right .who {
-  text-align: right;
-}
-.bubble-row.left .who {
-  text-align: left;
-}
-.bubble-row.right .mono {
-  text-align: left;
 }
 
 .mini-avatar {
@@ -163,7 +217,7 @@ watch(
   padding: 9px 13px 10px;
   box-shadow: 0 3px 0 var(--ink);
 }
-.bubble-row.right .bubble {
+.bubble-row.left .bubble {
   border-radius: 16px 4px 16px 16px;
 }
 
@@ -176,7 +230,7 @@ watch(
   gap: 6px;
   align-items: center;
 }
-.bubble-row.right .who {
+.bubble-row.left .who {
   justify-content: flex-end;
 }
 
@@ -199,18 +253,29 @@ watch(
   word-break: break-word;
 }
 
-.mono {
-  margin-top: 7px;
-  padding: 7px 9px;
+.channel-row {
+  justify-content: center;
+}
+.channel-row .bubble {
+  max-width: 86%;
+  background: #ffe9ef;
+  border-color: var(--wolf);
+  box-shadow: 0 3px 0 var(--wolf);
+}
+.channel-row .who {
+  color: var(--wolf);
+}
+
+.mono-card {
+  align-self: center;
+  max-width: 88%;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 11px;
   background: #f3f0fa;
   border: 1.5px dashed #9a92c4;
-  border-radius: 9px;
-  font-size: 12px;
-  line-height: 1.55;
-  color: #55507a;
-  display: flex;
-  gap: 6px;
-  align-items: baseline;
+  border-radius: 10px;
 }
 .mono-tag {
   flex: none;
@@ -220,20 +285,11 @@ watch(
   border: 1.5px solid #9a92c4;
   border-radius: 6px;
   padding: 0 5px;
+  margin-top: 1px;
 }
-
-.channel-row {
-  justify-content: center;
-}
-.channel-bubble {
-  max-width: 86%;
-  background: #ffe9ef;
-  border: 2.5px solid var(--wolf);
-  border-radius: 14px;
-  padding: 9px 13px 10px;
-  box-shadow: 0 3px 0 var(--wolf);
-}
-.channel-bubble .who {
-  color: var(--wolf);
+.mono-text {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: #55507a;
 }
 </style>

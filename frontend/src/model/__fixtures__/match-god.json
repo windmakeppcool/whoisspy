@@ -1,0 +1,61 @@
+{
+  "match_id": 7,
+  "exported_at": "2026-09-29T00:00:00+00:00",
+  "view": "god",
+  "match": {
+    "seed": 42,
+    "status": "finished",
+    "winner": "good",
+    "reason": "狼人全部出局",
+    "board": {
+      "roles": { "wolf": 1, "seer": 1, "villager": 2 },
+      "wolf_meeting_rounds": 2,
+      "max_days": 8
+    },
+    "seats": [
+      { "seat": 1, "persona_id": "p1", "persona_name": "悍跳强攻型", "persona_style": "语气强硬", "model": "mock", "role": "seer" },
+      { "seat": 2, "persona_id": "p2", "persona_name": "冷静盘逻辑型", "persona_style": "条理清晰", "model": "mock", "role": "wolf" }
+    ],
+    "model_assignments": []
+  },
+  "segments": [
+    {
+      "label": "开局",
+      "day_index": 0,
+      "is_night": false,
+      "entries": [
+        { "kind": "system", "seat": 1, "text": "发牌：1 号 = seer" },
+        { "kind": "system", "seat": 2, "text": "发牌：2 号 = wolf" }
+      ],
+      "stage": { "alive": [1, 2], "sheriff": null }
+    },
+    {
+      "label": "第一天",
+      "day_index": 1,
+      "is_night": false,
+      "entries": [
+        { "kind": "phase", "seat": null, "text": "—— 白天发言（第 1 天）——" },
+        { "kind": "speech", "seat": 1, "text": "1 号：我查验了 2 号，狼人。" },
+        { "kind": "monologue", "seat": 1, "text": "1 号（内心）：真预言家起跳。" },
+        { "kind": "speech", "seat": 2, "text": "2 号：巧了，我也是预言家。" },
+        { "kind": "vote", "seat": 1, "text": "1 号投票给 2 号" },
+        { "kind": "vote", "seat": 2, "text": "2 号投票给 1 号" },
+        { "kind": "system", "seat": null, "text": "2 号被放逐出局" }
+      ],
+      "stage": { "alive": [1], "sheriff": null },
+      "votes": [
+        { "title": "放逐投票", "scope": "exile", "votes": { "1": 2, "2": 1 }, "tally": { "2": 1, "1": 1 }, "exiled": 2, "tie": false }
+      ]
+    }
+  ],
+  "usage": {
+    "calls": 12,
+    "prompt_tokens": 1000,
+    "completion_tokens": 500,
+    "cached_prompt_tokens": 300,
+    "cost_micros": 0,
+    "cache_hit_rate": 0.5,
+    "fallbacks": 0,
+    "rule_errors": 0
+  }
+}
