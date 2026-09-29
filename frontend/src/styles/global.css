@@ -15,7 +15,8 @@ body {
   color: var(--ink);
   /* 页面底色兜底，真实背景由 SkyBackdrop 场景层提供 */
   background: var(--sky-day-bottom);
-  overflow: hidden;
+  /* 横向禁滚；纵向：列表页自然滚动，复盘页由 .page 自约束为视口高度 */
+  overflow-x: hidden;
 }
 
 button {

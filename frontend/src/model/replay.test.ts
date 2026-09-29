@@ -1,7 +1,9 @@
 // 文档 → 视图纯投影测试（结构→视觉，无游戏语义）
 import { describe, expect, it } from 'vitest'
-import type { DisplayDoc, DisplaySegment } from './display'
-import { buildSeats, clampSegment, lastVoteRound, speakingSeat } from './replay'
+import type { DisplayDoc, DisplaySegment, DisplayEntry } from './display'
+import {
+  buildSeats, clampSegment, lastVoteRound, mergeMonologues, speakingSeat,
+} from './replay'
 import fixture from './__fixtures__/match-god.json'
 
 const doc = fixture as unknown as DisplayDoc
@@ -48,5 +50,84 @@ describe('clampSegment', () => {
     expect(clampSegment(5, 2)).toBe(1)
     expect(clampSegment(1, 2)).toBe(1)
     expect(clampSegment(0, 0)).toBe(0)
+  })
+})
+
+describe('mergeMonologues', () => {
+  const e = (kind: string, seat: number | null, text: string): DisplayEntry =>
+    ({ kind, seat, text })
+
+  it('发言后紧跟同座内心 → 合并进一条（inner 携带内心，原内心被消费）', () => {
+    const out = mergeMonologues([
+      e('speech', 1, '1 号：我是预言家'),
+      e('monologue', 1, '1 号（内心）：真预言家起跳'),
+    ])
+    expect(out).toHaveLength(1)
+    expect(out[0]).toEqual({
+      kind: 'speech', seat: 1, text: '1 号：我是预言家',
+      inner: { text: '1 号（内心）：真预言家起跳' },
+    })
+  })
+
+  it('狼队频道后紧跟同座内心 → 合并', () => {
+    const out = mergeMonologues([
+      e('channel', 6, '6 号（狼队频道）：刀 1 号'),
+      e('monologue', 6, '6 号（内心）：按 kill 行动'),
+    ])
+    expect(out).toHaveLength(1)
+    expect(out[0].inner?.text).toBe('6 号（内心）：按 kill 行动')
+  })
+
+  it('遗言后紧跟同座内心 → 合并', () => {
+    const out = mergeMonologues([
+      e('last_words', 9, '9 号（遗言）：我是狼'),
+      e('monologue', 9, '9 号（内心）：暴露了'),
+    ])
+    expect(out).toHaveLength(1)
+    expect(out[0].kind).toBe('last_words')
+    expect(out[0].inner?.text).toBe('9 号（内心）：暴露了')
+  })
+
+  it('内心前不是发言（独立动作内心）→ 保留独立卡，inner 为 null', () => {
+    const out = mergeMonologues([
+      e('system', null, '预言家查验 2 号'),
+      e('monologue', 1, '1 号（内心）：按 check 行动'),
+    ])
+    expect(out).toHaveLength(2)
+    expect(out[1]).toEqual({ kind: 'monologue', seat: 1, text: '1 号（内心）：按 check 行动', inner: null })
+  })
+
+  it('内心紧跟的是别人发言（不同座）→ 不合并，各自独立', () => {
+    const out = mergeMonologues([
+      e('speech', 1, '1 号：我踩 2 号'),
+      e('monologue', 2, '2 号（内心）：这刀必须落'),
+    ])
+    expect(out).toHaveLength(2)
+    expect(out[0].inner).toBeNull()
+    expect(out[1].inner).toBeNull()
+  })
+
+  it('非发言类条目原样透传，inner 为 null', () => {
+    const out = mergeMonologues([
+      e('phase', null, '—— 入夜 ——'),
+      e('vote', 1, '1 号投票给 2 号'),
+    ])
+    expect(out).toHaveLength(2)
+    expect(out[0]).toEqual({ kind: 'phase', seat: null, text: '—— 入夜 ——', inner: null })
+    expect(out[1].inner).toBeNull()
+  })
+
+  it('fixture 段1：1 号发言内心合并、2 号发言无内心独立（顺序与条数守恒）', () => {
+    const seg = doc.segments[1] as DisplaySegment
+    const out = mergeMonologues(seg.entries)
+    expect(out).toHaveLength(seg.entries.length - 1)
+    const first = out[1]
+    expect(first.kind).toBe('speech')
+    expect(first.seat).toBe(1)
+    expect(first.inner?.text).toContain('内心')
+    const second = out[2]
+    expect(second.kind).toBe('speech')
+    expect(second.seat).toBe(2)
+    expect(second.inner).toBeNull()
   })
 })

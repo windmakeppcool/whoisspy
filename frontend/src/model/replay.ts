@@ -1,6 +1,13 @@
 // 文档 → 视图 props 的纯投影（结构→视觉，无任何游戏语义；P5 只禁事件解释）
-import { SEAT_EMOJI, roleTeam, type DisplayDoc, type DisplaySegment } from './display'
+import {
+  SEAT_EMOJI, roleTeam, type DisplayDoc, type DisplayEntry, type DisplaySegment,
+} from './display'
 import type { Seat, VoteRound } from './types'
+
+/** 渲染单元：发言/频道/遗言可携带紧随的内心（视觉合并，见 mergeMonologues）。 */
+export interface MergedEntry extends DisplayEntry {
+  inner: { text: string } | null
+}
 
 /** 文档座位 + 段末快照 → 座位卡 props（存活/警长随当前段变化）。 */
 export function buildSeats(
@@ -53,6 +60,29 @@ export function speakingSeat(seg: DisplaySegment): number | null {
     }
   }
   return null
+}
+
+/**
+ * 把「发言/遗言/狼队频道 + 紧随的同座内心」合并为一条渲染单元（inner 携带内心），
+ * 让内心作为该发言的附属子块呈现；无前置发言的独立内心（查验/投票/用药等动作）
+ * 原样保留。仅做结构折叠，不改写任何文本。
+ */
+export function mergeMonologues(entries: DisplayEntry[]): MergedEntry[] {
+  const out: MergedEntry[] = []
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i]
+    const attachable = e.kind === 'speech' || e.kind === 'last_words' || e.kind === 'channel'
+    if (attachable && e.seat != null) {
+      const next = entries[i + 1]
+      if (next && next.kind === 'monologue' && next.seat === e.seat) {
+        out.push({ ...e, inner: { text: next.text } })
+        i++ // 内心已被消费，跳过
+        continue
+      }
+    }
+    out.push({ ...e, inner: null })
+  }
+  return out
 }
 
 export function clampSegment(index: number, count: number): number {

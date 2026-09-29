@@ -1,8 +1,9 @@
 <script setup lang="ts">
 // 中央对话剧场：整卷渲染全部段落，IntersectionObserver 上报当前段（纯渲染器，
 // 不做视角过滤——文档本身已按视角生成，狼队频道/独白只在 god 文档存在）
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { DisplaySegment } from '../model/display'
+import { mergeMonologues } from '../model/replay'
 import type { Seat } from '../model/types'
 
 const props = defineProps<{
@@ -17,6 +18,11 @@ const emit = defineEmits<{
 const scrollEl = ref<HTMLElement | null>(null)
 const sectionEls: (HTMLElement | null)[] = []
 let observer: IntersectionObserver | null = null
+
+// 渲染用段：发言/频道/遗言后紧随的同座内心折叠进气泡（结构折叠，不改文本）
+const mergedSegments = computed(() =>
+  props.segments.map((s) => ({ ...s, entries: mergeMonologues(s.entries) })),
+)
 
 const seatById = new Map<number, Seat>(props.seats.map((s) => [s.id, s]))
 
@@ -41,13 +47,19 @@ function observe() {
     },
     { root: scrollEl.value, threshold: [0.15, 0.4, 0.7] },
   )
-  for (const el of sectionEls) if (el) observer.observe(el)
+  for (let i = 0; i < props.segments.length; i++) {
+    const el = sectionEls[i]
+    if (el) observer.observe(el)
+  }
 }
 
 watch(
   () => props.segments,
   async () => {
     await nextTick()
+    // 换文档（视角切换/换对局/本地重开）：滚动位置先归零，避免旧位置被
+    // IntersectionObserver 当成新文档的当前段（进度条/木牌错乱）。
+    if (scrollEl.value) scrollEl.value.scrollTop = 0
     observe()
   },
 )
@@ -58,12 +70,13 @@ onMounted(async () => {
 })
 onBeforeUnmount(() => observer?.disconnect())
 
-/** 段落导航滚动（DirectorBar 调用）。 */
+/** 段落导航滚动（DirectorBar 调用）：按视口相对偏移计算，避免 offsetParent 干扰。 */
 function scrollToSegment(index: number) {
   const el = sectionEls[index]
-  if (el && scrollEl.value) {
-    scrollEl.value.scrollTo({ top: el.offsetTop, behavior: 'smooth' })
-  }
+  const sc = scrollEl.value
+  if (!el || !sc) return
+  const top = el.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop
+  sc.scrollTo({ top, behavior: 'smooth' })
 }
 
 defineExpose({ scrollToSegment })
@@ -72,7 +85,7 @@ defineExpose({ scrollToSegment })
 <template>
   <section ref="scrollEl" class="theater" aria-label="对局对话">
     <div
-      v-for="(seg, si) in segments"
+      v-for="(seg, si) in mergedSegments"
       :key="si"
       class="seg"
       :data-seg="si"
@@ -88,7 +101,7 @@ defineExpose({ scrollToSegment })
           {{ it.text }}
         </p>
 
-        <!-- 内心独白（仅 god 文档存在） -->
+        <!-- 内心独白（独立动作：查验/投票/用药，无前置发言；仅 god 文档存在） -->
         <div v-else-if="it.kind === 'monologue'" class="mono-card">
           <span class="mono-tag">内心</span>
           <p class="mono-text">{{ it.text }}</p>
@@ -103,6 +116,10 @@ defineExpose({ scrollToSegment })
               <span class="tag wolf-tag">狼队频道</span>
             </p>
             <p class="text">{{ it.text }}</p>
+            <p v-if="it.inner" class="inner">
+              <span class="inner-tag">内心</span>
+              <span class="inner-text">{{ it.inner.text }}</span>
+            </p>
           </div>
         </div>
 
@@ -123,6 +140,10 @@ defineExpose({ scrollToSegment })
               >警长</span>
             </p>
             <p class="text">{{ it.text }}</p>
+            <p v-if="it.inner" class="inner">
+              <span class="inner-tag">内心</span>
+              <span class="inner-text">{{ it.inner.text }}</span>
+            </p>
           </div>
         </div>
       </template>
@@ -141,9 +162,13 @@ defineExpose({ scrollToSegment })
   border-radius: var(--radius-lg);
   background: var(--paper);
   box-shadow: var(--shadow-pop);
-  overflow: hidden;
+  overflow-y: auto; /* 剧场内滚动（页面禁滚，见 frontend-design 布局） */
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--paper-dim) transparent;
 }
 .seg {
+  flex: none; /* 不收缩：内容超出时溢出形成滚动，而不是被压扁 */
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -251,6 +276,30 @@ defineExpose({ scrollToSegment })
   line-height: 1.62;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* 发言气泡内折叠的内心子块：虚线分隔 + 弱化色，与正文同框 */
+.inner {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #d8cfa9;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.inner-tag {
+  flex: none;
+  font-size: 10px;
+  font-weight: 900;
+  color: #55507a;
+  border: 1.5px solid #9a92c4;
+  border-radius: 6px;
+  padding: 0 5px;
+}
+.inner-text {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: #8a85a0;
 }
 
 .channel-row {

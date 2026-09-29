@@ -55,6 +55,8 @@ const chip = computed(() =>
 const resultBanner = computed(() => {
   const d = store.doc
   if (!d || d.match.status !== 'finished' || !d.match.winner) return null
+  // 保留悬念：进度推进到终章才揭示胜负（剧场尾行的对局结束本就只在末段存在）
+  if (store.currentSegment !== store.segments.length - 1) return null
   const camp = d.match.winner === 'wolf' ? '狼人阵营' : '好人阵营'
   return `🏁 ${camp}获胜（${d.match.reason}）`
 })
@@ -83,77 +85,89 @@ function seek(index: number) {
 </script>
 
 <template>
-  <nav class="topbar">
-    <button class="back" @click="router.back()">← 返回</button>
-    <p class="brand"><span class="logo">🐺</span><span class="word">whoisspy</span></p>
-    <span v-if="store.doc" class="mid-chip">{{ chip }}</span>
-    <span v-if="store.localMode" class="mid-chip local">📄 本地文件</span>
-    <span class="spacer"></span>
-    <button
-      class="god-btn"
-      :class="{ on: store.godView }"
-      :disabled="store.localMode"
-      :title="store.localMode ? '本地文件是单视角文档' : '切换视角（G）'"
-      @click="store.setView(store.godView ? 'public' : 'god')"
-    >
-      {{ store.godView ? '👁️ 上帝视角' : '🙈 沉浸视角' }}
-    </button>
-  </nav>
+  <div class="page">
+    <nav class="topbar">
+      <button class="back" @click="router.back()">← 返回</button>
+      <p class="brand"><span class="logo">🐺</span><span class="word">whoisspy</span></p>
+      <span v-if="store.doc" class="mid-chip">{{ chip }}</span>
+      <span v-if="store.localMode" class="mid-chip local">📄 本地文件</span>
+      <span class="spacer"></span>
+      <button
+        class="god-btn"
+        :class="{ on: store.godView }"
+        :disabled="store.localMode"
+        :title="store.localMode ? '本地文件是单视角文档' : '切换视角（G）'"
+        @click="store.setView(store.godView ? 'public' : 'god')"
+      >
+        {{ store.godView ? '👁️ 上帝视角' : '🙈 沉浸视角' }}
+      </button>
+    </nav>
 
-  <p v-if="store.loading" class="state-line">加载对局……</p>
-  <p v-else-if="store.error" class="state-line err">{{ store.error }}</p>
-
-  <main v-else-if="store.doc" class="stage">
-    <aside class="wing">
-      <SeatColumn
-        :seats="leftSeats"
-        side="L"
-        :sheriff="store.current?.stage.sheriff ?? null"
-        :god-view="store.godView"
-        :speaking-seat="speaking"
-      />
-    </aside>
-
-    <div class="center">
-      <PhaseBanner
-        v-if="store.current"
-        :phase="store.current.is_night ? 'night' : 'day'"
-        :day="store.current.day_index"
-        :label="store.current.label"
-        :show-day="store.current.day_index > 0"
-      />
-      <p v-if="resultBanner" class="result-banner">{{ resultBanner }}</p>
-      <DialogueTheater
-        ref="theater"
-        :segments="store.segments"
-        :seats="seats"
-        @segment-change="onSegmentChange"
-      />
-      <VoteDrawer :vote="vote" :seats="seats" />
-      <UsagePanel v-if="store.doc" :usage="store.doc.usage" />
+    <div v-if="store.loading" class="loading-wrap">
+      <div class="loading-spinner" aria-hidden="true"></div>
+      <p class="state-line">正在加载对局……</p>
     </div>
+    <p v-else-if="store.error" class="state-line err">{{ store.error }}</p>
 
-    <aside class="wing">
-      <SeatColumn
-        :seats="rightSeats"
-        side="R"
-        :sheriff="store.current?.stage.sheriff ?? null"
-        :god-view="store.godView"
-        :speaking-seat="speaking"
-      />
-    </aside>
-  </main>
+    <main v-else-if="store.doc" class="stage">
+      <aside class="wing">
+        <SeatColumn
+          :seats="leftSeats"
+          side="L"
+          :sheriff="store.current?.stage.sheriff ?? null"
+          :god-view="store.godView"
+          :speaking-seat="speaking"
+        />
+      </aside>
 
-  <DirectorBar
-    v-if="store.doc"
-    :chapter-index="store.currentSegment"
-    :chapter-labels="store.segmentLabels"
-    @step="step"
-    @seek="seek"
-  />
+      <div class="center">
+        <PhaseBanner
+          v-if="store.current"
+          :phase="store.current.is_night ? 'night' : 'day'"
+          :day="store.current.day_index"
+          :label="store.current.label"
+          :show-day="store.current.day_index > 0"
+        />
+        <p v-if="resultBanner" class="result-banner">{{ resultBanner }}</p>
+        <DialogueTheater
+          ref="theater"
+          :segments="store.segments"
+          :seats="seats"
+          @segment-change="onSegmentChange"
+        />
+        <VoteDrawer :vote="vote" :seats="seats" />
+        <UsagePanel v-if="store.doc" :usage="store.doc.usage" />
+      </div>
+
+      <aside class="wing">
+        <SeatColumn
+          :seats="rightSeats"
+          side="R"
+          :sheriff="store.current?.stage.sheriff ?? null"
+          :god-view="store.godView"
+          :speaking-seat="speaking"
+        />
+      </aside>
+    </main>
+
+    <DirectorBar
+      v-if="store.doc && !store.loading"
+      :chapter-index="store.currentSegment"
+      :chapter-labels="store.segmentLabels"
+      @step="step"
+      @seek="seek"
+    />
+  </div>
 </template>
 
 <style scoped>
+/* 复盘页自约束为视口高度（页面不滚，剧场内滚，见 frontend-design 布局） */
+.page {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 .topbar {
   display: flex;
   align-items: center;
@@ -212,11 +226,34 @@ function seek(index: number) {
 }
 .state-line.err { color: var(--wolf); }
 
+/* 加载占位：旋转圈 + 文案，垂直居中占据舞台区（避免视角切换时旧内容闪现） */
+.loading-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+}
+.loading-wrap .state-line { padding: 0; }
+.loading-spinner {
+  width: 44px;
+  height: 44px;
+  border: 5px solid var(--paper-dim);
+  border-top-color: var(--ink);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 .stage {
   flex: 1;
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(170px, 230px) minmax(0, 1fr) minmax(170px, 230px);
+  grid-template-rows: minmax(0, 1fr); /* 行高锁定视口内，避免座位列内容撑破网格 */
   gap: 16px;
   padding: 2px 18px 4px;
   max-width: 1500px;

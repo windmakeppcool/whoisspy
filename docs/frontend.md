@@ -72,8 +72,8 @@ interface MatchSource {
 | `match.seats` + `segment.stage.{alive, sheriff}` | `SeatColumn` / `SeatCard` | 死亡✖、警长🏅、（仅 god 文档）角色徽章+阵营边条；沉浸视角中性 |
 | `segment.entries[].kind` | `DialogueTheater` | 见下表 |
 | `segment.votes[]` | `VoteDrawer` | 该段投票回合：末回合展开、历史回合折叠；条宽按最高票归一 |
+| `match.winner / reason` | 终局横幅（剧场尾行 + `MatchView` 顶部横幅） | 🏁 胜负与原因。**保留悬念**：横幅仅在进度抵达末段（`currentSegment === segments.length - 1`）时显示，前段复盘不剧透 |
 | `usage` | `UsagePanel`（新增小组件） | 调用数 / tokens / 费用 / 缓存命中率 / 兜底数 / 规则异常数 |
-| `match.winner / reason` | 终局横幅（PhaseBanner 终局态 + 剧场尾行） | 🏁 胜负与原因 |
 
 Line kind → 剧场形态：
 
@@ -81,7 +81,7 @@ Line kind → 剧场形态：
 |---|---|
 | `speech` / `last_words` | 左右交替白底气泡（按座位 side）；遗言挂灰标签 |
 | `channel` | 狼队频道粉色居中气泡（仅 god 文档存在） |
-| `monologue` | 虚线框内心独白小卡（仅 god 文档存在） |
+| `monologue` | 紧随同座 `speech`/`last_words`/`channel` 时**折叠进该气泡**（虚线分隔 +「内心」标签，`mergeMonologues` 纯函数只折叠结构、不改文本）；独立动作内心（查验/投票/用药等无前置发言者）保留虚线小卡。仅 god 文档存在 |
 | `system` | 居中胶囊旁白 |
 | `phase` | 段内弱化分隔行 |
 | `vote` | 「X 号投票给 Y 号」计入旁白流（结构化票型在 VoteDrawer） |
@@ -92,7 +92,15 @@ Line kind → 剧场形态：
 `speech / channel / last_words` 的 seat（纯视觉派生，允许）。
 
 **段落导航**：`DirectorBar` 从设计稿工具**转正**为复盘导航——章节胶囊 = `segments`，
-‹ › 切换、点击滚到段。自动播放/倍速暂缓（roadmap 不变）。
+‹ › 切换、点击滚到段；顶部细进度条（`role="progressbar"`，宽度 = `(当前段+1)/总段数`）+
+「N / M」当前段数字强化进度感。自动播放/倍速暂缓（roadmap 不变）。
+
+**换文档必须重置滚动**：`DialogueTheater` 的组件实例在视角切换时被 Vue 复用，
+`watch(segments)` 里必须显式 `scrollTop = 0` 再重挂 IntersectionObserver——否则旧滚动位置
+会被 observer 当成新文档的当前段回写，导致进度条/木牌与内容错位（此 bug 已修，见第十节）。
+
+**加载态**：`store.loading` 期间渲染居中旋转圈 + 「正在加载对局……」，并**卸载**舞台与
+`DirectorBar`（`v-if="store.doc && !store.loading"`）——避免换视角时旧文档的进度条/内容闪现。
 
 ## 六、状态管理与退役清单
 
@@ -114,7 +122,8 @@ Pinia：
 
 ## 七、测试
 
-- vitest 纯函数：display 守卫（合法 v2 / 坏文档 / v1 拒绝）、段落游标推进、VoteDrawer 票数归一；
+- vitest 纯函数：display 守卫（合法 v2 / 坏文档 / v1 拒绝）、段落游标推进、VoteDrawer 票数归一、
+  `mergeMonologues` 内心折叠（发言/频道/遗言各态、不同座不合并、条数守恒）；
 - 组件冒烟：MatchView 以真实导出文件（`backend/exports/match-*-god.json`）为 fixture；
 - 契约由后端锁死：`test_export` 覆盖 v2 字段（[backend/13-testing.md](backend/13-testing.md)）。
 
@@ -154,3 +163,19 @@ Pinia：
 4. 验收：后端全量测试绿（212 passed + 1 个环境相关用例）；前端 `vitest` 16 通过、
    `vue-tsc -b && vite build` 通过；`python -m app.main --mock --seed 42` 产出
    `exports/match-3-{god,public}.json + index.json`，dev server `/exports/` 读取正常。
+
+### 补充：显示逻辑优化（2026-09-29 二轮）
+
+1. **修复**「换视角后当前段错乱」：`DialogueTheater` 换文档时未重置 `scrollTop`，
+   IntersectionObserver 用旧位置回写 `currentSegment` → 进度条/木牌错位。
+   修法：`watch(segments)` 内 `scrollTop = 0` 后重挂 observer（新增不变量，见第五节）；
+2. 内心合并：新增纯函数 `mergeMonologues`（TDD 7 用例），发言/遗言/狼队频道气泡内折叠
+   紧随同座内心（虚线分隔 +「内心」标签），独立动作内心保留虚线小卡；
+3. 进度条：`DirectorBar` 增顶部细进度条 + 「N / M」当前段数字；类名用 `progress-track`
+   以避开 `VoteDrawer` 的 `.track`（投票条）歧义；
+4. 悬念：终局横幅只在末段揭示胜负；加载态居中旋转圈并卸载舞台与进度条。
+
+验收：`vitest` 23 通过（3 文件）、`vue-tsc -b` 通过、`vite build` 通过；浏览器实测
+视角切换双向 `god ↔ public` 均归零至 `1 / 7`，加载态与终局揭示时点符合预期；控制台仅
+favicon 404。
+
