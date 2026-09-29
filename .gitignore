@@ -27,6 +27,8 @@ backend/trace*/
 node_modules/
 dist/
 *.local
+# TypeScript 增量构建缓存（每次 tsc -b 都变，不进版本控制）
+*.tsbuildinfo
 
 # 环境变量
 .env
