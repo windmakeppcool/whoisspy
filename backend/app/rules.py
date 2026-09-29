@@ -58,7 +58,8 @@ def decide_kill(proposals: dict[int, int], rng: Random,
 def tally_votes(votes: dict[int, int], sheriff: int | None = None) -> dict[str, Any]:
     """计票：警长的非零票计 2 票权重；0 = 弃权。
 
-    返回 {exiled, tie, tied}：唯一最高 → exiled=最高者；并列 → tie=True + tied。
+    返回 {counts, exiled, tie, tied}：counts=目标→票数（展示文档用）；
+    唯一最高 → exiled=最高者；并列 → tie=True + tied。
     """
     counts: dict[int, int] = {}
     for voter, target in votes.items():
@@ -66,12 +67,12 @@ def tally_votes(votes: dict[int, int], sheriff: int | None = None) -> dict[str, 
             continue
         counts[target] = counts.get(target, 0) + (2 if voter == sheriff else 1)
     if not counts:
-        return {"exiled": None, "tie": False, "tied": []}
+        return {"exiled": None, "tie": False, "tied": [], "counts": {}}
     top = max(counts.values())
     leaders = sorted(t for t, c in counts.items() if c == top)
     if len(leaders) == 1:
-        return {"exiled": leaders[0], "tie": False, "tied": []}
-    return {"exiled": None, "tie": True, "tied": leaders}
+        return {"exiled": leaders[0], "tie": False, "tied": [], "counts": counts}
+    return {"exiled": None, "tie": True, "tied": leaders, "counts": counts}
 
 
 # ---------- 夜结算矩阵 ----------

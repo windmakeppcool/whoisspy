@@ -68,9 +68,10 @@ def _seats():
             {"seat": 2, "persona_id": "p2", "model": "mock", "role": "seer"}]
 
 
-def _export(view="god"):
+def _export(view="god", personas=None):
     return build_export(match_id=1, match_info=_match_info(), seats=_seats(),
-                        events=_sample_events(), usage=_usage(), view=view)
+                        events=_sample_events(), usage=_usage(), view=view,
+                        personas=personas)
 
 
 # ---------- schema 与分段 ----------
@@ -155,3 +156,110 @@ def test_导出空事件():
                        events=[], usage=_usage(), view="god")
     assert doc["segments"] == []
     assert doc["usage"]["fallbacks"] == 0
+
+
+# ---------- v2：展示文档（is_night / stage / votes / persona / index）----------
+# 规格：docs/backend/11-export.md 第五节（is_night、段末 stage 快照、结构化 votes）
+
+
+def _v2_events():
+    """完整发牌（1-4 号）+ 夜刀 2 号 + 警长 3 号 + 放逐 3 号 + 开枪链 3→1。"""
+    evs = [
+        _ev(1, "match.created", {"seed": 42, "roles": {"wolf": 1}}, day=0, phase=""),
+        _ev(2, "match.started", {"seed": 42}, day=0, phase=""),
+        _ev(3, "role.dealt", {"seat": 1, "role": "villager"}, vis=seat(1), day=0, phase=""),
+        _ev(4, "role.dealt", {"seat": 2, "role": "villager"}, vis=seat(2), day=0, phase=""),
+        _ev(5, "role.dealt", {"seat": 3, "role": "hunter"}, vis=seat(3), day=0, phase=""),
+        _ev(6, "role.dealt", {"seat": 4, "role": "wolf"}, vis=seat(4), day=0, phase=""),
+        _ev(7, "phase.started", {"phase": "night_start", "day": 1, "label": "入夜"},
+            phase="night_start"),
+        _ev(8, "night.resolved", {"day": 1, "deaths": {"2": ""}}, phase="night_resolve"),
+        _ev(9, "phase.started", {"phase": "sheriff_elect", "day": 1, "label": "警长竞选"},
+            phase="sheriff_elect"),
+        _ev(10, "sheriff.badge", {"action": "transfer", "to": 3}, phase="sheriff_elect"),
+        _ev(11, "phase.started", {"phase": "speech_order", "day": 1, "label": "发言定序"},
+            phase="speech_order"),
+        _ev(12, "phase.started", {"phase": "day_vote", "day": 1, "label": "放逐投票"},
+            phase="day_vote"),
+        _ev(13, "vote.cast", {"seat": 1, "target": 3}, phase="day_vote"),
+        _ev(14, "vote.cast", {"seat": 3, "target": 3}, phase="day_vote"),
+        _ev(15, "vote.resolved", {"votes": {1: 3, 3: 3}, "scope": "exile", "exiled": 3,
+                                  "tie": False, "tied": []}, phase="day_vote"),
+        _ev(16, "phase.started", {"phase": "exile_resolve", "day": 1, "label": "放逐结算"},
+            phase="exile_resolve"),
+        _ev(17, "gun.shoot", {"seat": 3, "target": 1, "text": "带走"}, phase="exile_resolve"),
+        _ev(18, "match.finished", {"winner": "good", "reason": "狼人全部出局"},
+            phase="exile_resolve"),
+    ]
+    return evs
+
+
+def _v2_export(view="god"):
+    return build_export(match_id=1, match_info=_match_info(), seats=_seats(),
+                        events=_v2_events(), usage=_usage(), view=view)
+
+
+def test_v2_段含is_night():
+    segs = _v2_export()["segments"]
+    assert segs[0]["is_night"] is False  # 开局
+    assert segs[1]["is_night"] is True  # 第一夜
+    assert segs[2]["is_night"] is False  # 第一天
+    assert segs[2]["day_index"] == 1
+
+
+def test_v2_段末stage快照含开枪链与移徽():
+    segs = _v2_export()["segments"]
+    assert segs[0]["stage"] == {"alive": [1, 2, 3, 4], "sheriff": None}
+    assert segs[1]["stage"] == {"alive": [1, 3, 4], "sheriff": 3}  # 夜刀 2 号 + 徽章移交 3 号
+    assert segs[2]["stage"] == {"alive": [4], "sheriff": 3}  # 放逐 3 号 + 开枪带走 1 号
+
+
+def test_v2_票回合结构化含警长两票():
+    segs = _v2_export()["segments"]
+    votes = segs[2]["votes"]
+    assert votes == [{
+        "title": "放逐投票", "scope": "exile",
+        "votes": {1: 3, 3: 3}, "tally": {3: 3},  # 3 号是警长 → 2 票权重
+        "exiled": 3, "tie": False,
+    }]
+
+
+def test_v2_public视角无role但stage与votes齐全():
+    doc = _v2_export(view="public")
+    assert all("role" not in s or s["role"] is None for s in doc["match"]["seats"])
+    for seg in doc["segments"]:
+        assert "stage" in seg
+    assert doc["segments"][2]["votes"][0]["tally"] == {3: 3}
+
+
+def test_v2_seats含persona名与回退():
+    doc = _export(personas={"p1": {"name": "悍跳", "style": "强硬"}})
+    rows = doc["match"]["seats"]
+    assert rows[0]["persona_name"] == "悍跳"
+    assert rows[0]["persona_style"] == "强硬"
+    assert rows[1]["persona_name"] == "p2"  # 无配置回退 persona_id
+    assert rows[1]["persona_style"] == ""  # 无配置回退空
+
+
+def test_index_合并更新幂等(tmp_path):
+    import json
+
+    from app.export import index_entry, update_index
+
+    p = tmp_path / "index.json"
+    e1 = index_entry(match_id=1, seed=1, status="finished", winner="good",
+                     reason="r", player_count=9, exported_at="t1", views=["god"])
+    update_index(p, e1)
+    e2 = index_entry(match_id=2, seed=2, status="finished", winner="wolf",
+                     reason="r", player_count=9, exported_at="t2",
+                     views=["god", "public"])
+    update_index(p, e2)
+    e1b = index_entry(match_id=1, seed=1, status="finished", winner="good",
+                      reason="r", player_count=9, exported_at="t3",
+                      views=["public"])
+    update_index(p, e1b)
+    doc = json.loads(p.read_text(encoding="utf-8"))
+    assert [m["match_id"] for m in doc["matches"]] == [1, 2]  # 同局覆盖不重复
+    m1 = doc["matches"][0]
+    assert m1["views"] == ["god", "public"]  # views 取并集
+    assert m1["exported_at"] == "t3"  # 最新导出覆盖

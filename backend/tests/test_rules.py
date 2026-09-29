@@ -82,11 +82,13 @@ def test_定刀空提案空刀():
 # ---------- 计票 ----------
 
 def test_计票唯一最高出局():
-    assert tally_votes({1: 2, 2: 3, 3: 2}) == {"exiled": 2, "tie": False, "tied": []}
+    assert tally_votes({1: 2, 2: 3, 3: 2}) == {"exiled": 2, "tie": False, "tied": [],
+                                               "counts": {2: 2, 3: 1}}
 
 
 def test_计票全弃权无人出局():
-    assert tally_votes({1: 0, 2: 0, 3: 0}) == {"exiled": None, "tie": False, "tied": []}
+    assert tally_votes({1: 0, 2: 0, 3: 0}) == {"exiled": None, "tie": False,
+                                               "tied": [], "counts": {}}
 
 
 def test_计票平票():
@@ -101,6 +103,11 @@ def test_计票警长2票权重():
 
 def test_计票警长票破解平票():
     assert tally_votes({1: 2, 2: 3, 3: 2}, sheriff=1)["exiled"] == 2
+
+
+def test_计票counts含警长权重():
+    t = tally_votes({1: 2, 2: 2, 3: 5}, sheriff=1)
+    assert t["counts"] == {2: 3, 5: 1}  # 警长 1 号投 2 → 2 票权重
 
 
 # ---------- 夜结算矩阵 ----------

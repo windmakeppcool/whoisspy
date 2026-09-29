@@ -1,6 +1,7 @@
 """config 与 CLI 测试（Red 先行）：docs/backend/09-config.md + 12-cli.md。"""
 
 import json
+import os
 
 import pytest
 
@@ -152,6 +153,37 @@ async def test_cli_调用超限退出码2(tmp_path):
     assert code == 2  # stopped
 
 
+async def test_cli_默认导出双视角与索引(tmp_path):
+    from app.main import main
+
+    old = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        code = await main(["--mock", "--seed", "42", "--db", str(tmp_path / "t.db")])
+    finally:
+        os.chdir(old)
+    assert code == 0
+    out_dir = tmp_path / "exports"
+    assert (out_dir / "match-1-god.json").exists()
+    assert (out_dir / "match-1-public.json").exists()
+    god = json.loads((out_dir / "match-1-god.json").read_text(encoding="utf-8"))
+    pub = json.loads((out_dir / "match-1-public.json").read_text(encoding="utf-8"))
+    assert god["view"] == "god" and pub["view"] == "public"
+    assert "stage" in god["segments"][0]  # v2 字段
+    index = json.loads((out_dir / "index.json").read_text(encoding="utf-8"))
+    assert index["matches"][0]["match_id"] == 1
+    assert index["matches"][0]["views"] == ["god", "public"]
+
+
+async def test_cli_both与out冲突退出3(tmp_path):
+    from app.main import main
+
+    code = await main(["--mock", "--seed", "42", "--view", "both",
+                       "--out", str(tmp_path / "x.json"),
+                       "--db", str(tmp_path / "t.db")])
+    assert code == 3
+
+
 async def test_cli_real无key退出码3(tmp_path):
     from app.main import main
 
@@ -176,3 +208,4 @@ async def test_cli_参数解析():
     args2 = parse_args([])
     assert args2.mock is True and args2.seed is None
     assert args2.max_days == 8 and args2.wolf_rounds == 2 and args2.max_calls == 600
+    assert args2.view == "both"  # v2 缺省双视角导出

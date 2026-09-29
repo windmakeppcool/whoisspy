@@ -17,7 +17,7 @@ from typing import Any
 
 from app.config import build_seats, load_env_file, load_personas, load_providers
 from app.events import Event
-from app.export import build_export
+from app.export import build_export, index_entry, update_index
 from app.flow import MatchRun, run_match
 from app.llm import LLMGateway, TraceRecorder
 from app.present import present
@@ -32,8 +32,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--real", action="store_true", help="真实 LLM（providers.json + .env）")
     parser.add_argument("--seed", type=int, default=None, help="随机种子（缺省取当前时间）")
     parser.add_argument("--db", default=None, help="SQLite 路径（默认 data/whoisspy.db）")
-    parser.add_argument("--out", default=None, help="导出 JSON 路径（默认 exports/ 下）")
-    parser.add_argument("--view", choices=("god", "public"), default="god", help="导出视角")
+    parser.add_argument("--out", default=None, help="导出 JSON 路径（默认 exports/ 下双视角+索引）")
+    parser.add_argument("--view", choices=("god", "public", "both"), default=None,
+                        help="导出视角（缺省 both：双视角文件 + index.json；配 --out 时回落 god）")
     parser.add_argument("--trace", default=None, help="开启调用留痕目录（JSONL）")
     parser.add_argument("--model", default=None, help="real 模式把分配池收窄为单模型")
     parser.add_argument("--max-days", type=int, default=MAX_DAYS, help="天数上限")
@@ -43,6 +44,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     args = parser.parse_args(argv)
     if not args.mock and not args.real:
         args.mock = True  # 缺省 mock 模式
+    if args.view is None:
+        # 显式 --out 是单文件归档（旧行为回落 god）；否则缺省双视角 both
+        args.view = "god" if args.out else "both"
     return args
 
 
@@ -85,6 +89,9 @@ async def main(argv: list[str] | None = None) -> int:
 
 
 async def _run(args: argparse.Namespace, base: Path) -> int:
+    if args.out and args.view == "both":
+        # --out 是单文件归档路径，与双视角导出互斥（12-cli 四）
+        raise ValueError("--out 与 --view both 不能同时使用；请显式指定 god 或 public")
     seed = args.seed if args.seed is not None else int(time.time())
     if args.real:
         seats, assignments = _real_seats(args, base)
@@ -131,7 +138,7 @@ async def _run(args: argparse.Namespace, base: Path) -> int:
                                        {"winner": None, "reason": "手动终止"})
         code = 2
     finally:
-        await _finish(run, store, args, mid)
+        await _finish(run, store, args, mid, base)
         if trace is not None:
             trace.close()
     return code
@@ -143,7 +150,20 @@ def _live(ev: Event) -> None:
         print(line.text)
 
 
-async def _finish(run: MatchRun, store: Store, args: argparse.Namespace, mid: int) -> None:
+def _personas_meta(base: Path) -> dict[str, dict[str, str]] | None:
+    """人设显示名/风格映射（personas.json 可选；缺失或坏配置回退 None → 导出用 persona_id）。"""
+    f = base / "data" / "personas.json"
+    if not f.exists():
+        return None
+    try:
+        data = load_personas(str(f))
+    except ValueError:
+        return None
+    return {p.id: {"name": p.name, "style": p.style} for p in data.personas}
+
+
+async def _finish(run: MatchRun, store: Store, args: argparse.Namespace,
+                  mid: int, base: Path) -> None:
     """用量汇总打印 + 导出 JSON + 关闭 DB。"""
     m = await store.load_match(mid)
     usage = await store.usage_summary(mid)
@@ -161,14 +181,34 @@ async def _finish(run: MatchRun, store: Store, args: argparse.Namespace, mid: in
           f"（缓存命中 {usage['cache_hit_rate']:.0%}）"
           f" / 兜底 {fallbacks} 次 / 规则异常 {rule_errors} 次")
 
-    out = Path(args.out) if args.out else Path(f"exports/match-{mid}-{args.view}.json")
-    out.parent.mkdir(parents=True, exist_ok=True)
     events = await store.load_events(mid)
     seats = await store.load_seats(mid)
-    doc = build_export(match_id=mid, match_info=m or {}, seats=seats,
-                       events=events, usage=usage, view=args.view)
-    out.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"导出：{out}")
+    personas = _personas_meta(base)
+
+    def _write(out: Path, view: str) -> str:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        doc = build_export(match_id=mid, match_info=m or {}, seats=seats,
+                           events=events, usage=usage, view=view, personas=personas)
+        out.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
+        return doc["exported_at"]
+
+    if args.out:
+        # 单文件归档（--view 生效，不更新索引）
+        exported_at = _write(Path(args.out), args.view)
+        print(f"导出：{args.out}")
+    else:
+        # 缺省：双视角文件 + 合并更新对局索引（12-cli 四 / 11-export 五）
+        out_dir = Path("exports")
+        exported_at = _write(out_dir / f"match-{mid}-god.json", "god")
+        _write(out_dir / f"match-{mid}-public.json", "public")
+        entry = index_entry(match_id=mid, seed=(m or {}).get("seed"),
+                            status=(m or {}).get("status"),
+                            winner=result.get("winner"), reason=result.get("reason"),
+                            player_count=len(seats), exported_at=exported_at,
+                            views=["god", "public"])
+        update_index(out_dir / "index.json", entry)
+        print(f"导出：exports/match-{mid}-god.json、exports/match-{mid}-public.json"
+              " + index.json")
     await store.close()
 
 
