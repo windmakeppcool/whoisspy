@@ -153,32 +153,18 @@ Pinia：
 | F5 | `DirectorBar` 转正为段落导航 | 段快照使「按前缀渲染」零成本 |
 | F6 | `index.json` 由 CLI 导出时维护 | 静态可部署可归档；前端不扫目录、后端不起服务 |
 
-## 十、落地记录（已实施 2026-09-29）
+## 十、落地记录（已实施 2026-09-29，详情见 git 历史）
 
-按本册设计全部落地，验收如下：
+静态导出直读复盘按本册设计全部落地并验收：后端 export v2（`is_night / stage / votes /
+persona_name`）+ `index.json` + `--view both` 缺省双视角（[backend/11-export.md](backend/11-export.md) 五，
+`test_export` 锁死）；前端 `model/display.ts` 守卫 + `model/replay.ts` 纯投影 + `source/`
+静态/本地文件源 + `stores/replay` 重写，MatchListView / MatchView 接入（DirectorBar 段落导航、
+UsagePanel、视角切换=换文档、本地文件打开），旧 `api/` `model/project.ts` `stores/match|catalog`
+退役删除。
 
-1. 后端：export v2（`is_night / stage / votes / persona_name`）+ `index.json` + `--view both`
-   缺省双视角（规格 [backend/11-export.md](backend/11-export.md) 五；测试 `test_export` 增补）；
-2. 前端：`model/display.ts` 守卫 + `model/replay.ts` 纯投影 + `source/` 静态/本地文件源 +
-   `stores/replay` 重写（vitest 16 用例全绿）；
-3. 前端：MatchListView / MatchView 复盘舞台接入（DirectorBar 段落导航、UsagePanel、
-   视角切换=换文档、本地文件打开），旧 `api/` `model/project.ts` `stores/match|catalog` 退役删除；
-4. 验收：后端全量测试绿（212 passed + 1 个环境相关用例）；前端 `vitest` 16 通过、
-   `vue-tsc -b && vite build` 通过；`python -m app.main --mock --seed 42` 产出
-   `exports/match-3-{god,public}.json + index.json`，dev server `/exports/` 读取正常。
+二轮显示优化：修复换视角段错乱（`DialogueTheater` 换文档重置 `scrollTop`）、内心合并
+`mergeMonologues`（TDD 7 用例）、进度条 + 「N / M」数字、终局横幅末段揭示悬念、加载态卸载舞台。
 
-### 补充：显示逻辑优化（2026-09-29 二轮）
-
-1. **修复**「换视角后当前段错乱」：`DialogueTheater` 换文档时未重置 `scrollTop`，
-   IntersectionObserver 用旧位置回写 `currentSegment` → 进度条/木牌错位。
-   修法：`watch(segments)` 内 `scrollTop = 0` 后重挂 observer（新增不变量，见第五节）；
-2. 内心合并：新增纯函数 `mergeMonologues`（TDD 7 用例），发言/遗言/狼队频道气泡内折叠
-   紧随同座内心（虚线分隔 +「内心」标签），独立动作内心保留虚线小卡；
-3. 进度条：`DirectorBar` 增顶部细进度条 + 「N / M」当前段数字；类名用 `progress-track`
-   以避开 `VoteDrawer` 的 `.track`（投票条）歧义；
-4. 悬念：终局横幅只在末段揭示胜负；加载态居中旋转圈并卸载舞台与进度条。
-
-验收：`vitest` 23 通过（3 文件）、`vue-tsc -b` 通过、`vite build` 通过；浏览器实测
-视角切换双向 `god ↔ public` 均归零至 `1 / 7`，加载态与终局揭示时点符合预期；控制台仅
-favicon 404。
+验收：后端 212+ passed；前端 vitest 23、`vue-tsc -b` 与 `vite build` 通过；`--mock --seed 42`
+产出 `exports/match-*-{god,public}.json + index.json`，dev server `/exports/` 读取正常。
 
