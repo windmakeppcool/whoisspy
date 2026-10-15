@@ -6,9 +6,11 @@
 
 ## 一、定位
 
-单进程、无 HTTP 的**对局引擎**：跑一局标准 9 人狼人杀（mock 或真实 LLM），
-全程事件落 SQLite，跑完导出对话 JSON。人是「赛后读者」，不是实时观众——
-这是本次重写的**全部范围**。
+单进程、无常驻服务的**对局引擎**：跑一局标准 9 人狼人杀（mock 或真实 LLM），
+全程事件落 SQLite，跑完导出对话 JSON。引擎本体保持无 UI 依赖、`python -m app.main`
+仍是独立可跑的调试入口；**产品形态已转为纯 PC 游戏**（D34）——Electron 客户端 +
+Python sidecar 双进程、人类入座/观战，`--serve` 常驻模式与 WebSocket 层是引擎外的
+薄壳，规格见 [pc-game.md](../pc-game.md)（引擎内核规格仍以本文为准）。
 
 ```
 python -m app.main --mock --seed 42
@@ -27,12 +29,13 @@ python -m app.main --mock --seed 42
 4. mock 模式**确定性可复现**（同 seed → 逐字节相同的事件流）；
 5. 代码**可单步调试**：流程是直排代码，没有协议跳转与运行时注册表。
 
-**非目标（本次明确不做）**
+**非目标（引擎本体；PC 壳的边界见 [pc-game.md](../pc-game.md)）**
 
-- FastAPI / REST / SSE / WebSocket——前端暂不可用（处置见 [14-migration.md](14-migration.md)）；
+- 引擎本体内不做常驻 HTTP/WebSocket 服务——serve 层是 `main.py` 的 `--serve` 薄壳
+  （D34/D35，实施时扩展 [12-cli.md](12-cli.md)）；
 - TUI 观看器（删除，不迁移）；
 - 回放/分叉重跑工具（事件表天然支持，未来需要再加）;
-- 多游戏插件抽象（GameDefinition / StepContext / registry 全部删除）；
+- 多游戏插件抽象（GameDefinition / StepContext / registry 全部删除；多游戏口径见 D36）；
 - 并发多局（一次进程跑一局）。
 
 ## 三、设计原则（针对旧架构的病灶）

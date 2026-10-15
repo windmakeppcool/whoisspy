@@ -1,0 +1,823 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#23264f" />
+  <title>whoisspy · 移动端复盘设计稿</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Noto+Sans+SC:wght@400;500;700;900&family=ZCOOL+KuaiLe&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #2d2a3e;
+      --paper: #fff8e7;
+      --paper-dim: #f1e6c8;
+      --sky-top: #23264f;
+      --sky-bottom: #50558d;
+      --wolf: #e4577e;
+      --good: #f2a93b;
+      --seer: #5b8def;
+      --sheriff: #f5c542;
+      --dead: #9b97a8;
+      --font-display: "ZCOOL KuaiLe", "Noto Sans SC", sans-serif;
+      --font-body: "Noto Sans SC", sans-serif;
+      --font-num: "Baloo 2", "Noto Sans SC", sans-serif;
+      --outline: 2.5px solid var(--ink);
+      --hard-shadow: 0 3px 0 var(--ink);
+    }
+
+    * { box-sizing: border-box; }
+
+    html { min-width: 320px; background: #20213c; }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      color: var(--ink);
+      font-family: var(--font-body);
+      background:
+        radial-gradient(ellipse at 50% 0%, rgba(108, 117, 178, .3), transparent 42%),
+        #20213c;
+    }
+
+    button { color: inherit; font: inherit; }
+
+    .presentation {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: minmax(250px, 330px) 390px minmax(250px, 330px);
+      align-items: center;
+      justify-content: center;
+      gap: clamp(28px, 6vw, 92px);
+      padding: 40px 32px;
+    }
+
+    .design-note {
+      color: #e9e5ff;
+      align-self: center;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #b8c4fa;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before {
+      width: 22px;
+      height: 2px;
+      content: "";
+      background: #f5c542;
+    }
+
+    .design-note h1 {
+      max-width: 330px;
+      margin: 18px 0 14px;
+      font-family: var(--font-display);
+      font-size: clamp(32px, 4vw, 48px);
+      font-weight: 400;
+      line-height: 1.17;
+      letter-spacing: .02em;
+    }
+
+    .design-note > p {
+      max-width: 310px;
+      margin: 0;
+      color: #b8b8d0;
+      font-size: 14px;
+      line-height: 1.9;
+    }
+
+    .principles {
+      display: grid;
+      gap: 13px;
+      margin: 31px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .principles li {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      color: #dedced;
+      font-size: 12px;
+    }
+
+    .principles span {
+      display: grid;
+      width: 26px;
+      height: 26px;
+      place-items: center;
+      border: 1px solid rgba(255,255,255,.22);
+      border-radius: 9px;
+      color: #f5c542;
+      font-family: var(--font-num);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .device {
+      position: relative;
+      width: 390px;
+      height: min(844px, calc(100vh - 52px));
+      min-height: 700px;
+      overflow: hidden;
+      isolation: isolate;
+      border: 7px solid #10111f;
+      border-radius: 39px;
+      background: var(--sky-bottom);
+      box-shadow: 0 35px 90px rgba(0,0,0,.46), 0 0 0 1px rgba(255,255,255,.1);
+    }
+
+    .device::before {
+      position: absolute;
+      z-index: 5;
+      top: 7px;
+      left: 50%;
+      width: 104px;
+      height: 26px;
+      content: "";
+      transform: translateX(-50%);
+      border-radius: 0 0 17px 17px;
+      background: #10111f;
+    }
+
+    .sky {
+      position: absolute;
+      z-index: -2;
+      inset: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(ellipse at 50% 24%, rgba(126, 133, 199, .36), transparent 42%),
+        linear-gradient(180deg, var(--sky-top) 0%, var(--sky-bottom) 66%, #8993a3 100%);
+    }
+
+    .moon {
+      position: absolute;
+      top: 106px;
+      right: 44px;
+      width: 51px;
+      height: 51px;
+      border-radius: 50%;
+      background: #f5e960;
+      box-shadow: 0 0 0 8px rgba(245,233,96,.1), 0 0 0 17px rgba(245,233,96,.06);
+    }
+
+    .moon::after {
+      position: absolute;
+      top: -8px;
+      left: 15px;
+      width: 48px;
+      height: 48px;
+      content: "";
+      border-radius: 50%;
+      background: #30345f;
+    }
+
+    .stars {
+      position: absolute;
+      inset: 0 0 35%;
+      opacity: .9;
+      background-image:
+        radial-gradient(2px 2px at 12% 13%, #fff5c7 98%, transparent),
+        radial-gradient(1.5px 1.5px at 26% 23%, #fff5c7 98%, transparent),
+        radial-gradient(2px 2px at 51% 10%, #fff5c7 98%, transparent),
+        radial-gradient(1px 1px at 74% 19%, #fff5c7 98%, transparent),
+        radial-gradient(2px 2px at 88% 34%, #fff5c7 98%, transparent),
+        radial-gradient(1px 1px at 64% 37%, #fff5c7 98%, transparent),
+        radial-gradient(1.5px 1.5px at 36% 7%, #fff5c7 98%, transparent),
+        radial-gradient(1px 1px at 8% 41%, #fff5c7 98%, transparent);
+    }
+
+    .hills {
+      position: absolute;
+      right: -20%;
+      bottom: -2px;
+      left: -20%;
+      height: 150px;
+      border-radius: 50% 50% 0 0 / 25% 25% 0 0;
+      background: #3d5262;
+      opacity: .9;
+    }
+
+    .hills::before {
+      position: absolute;
+      right: 18%;
+      bottom: 0;
+      left: -9%;
+      height: 104px;
+      content: "";
+      border-radius: 50% 50% 0 0 / 32% 32% 0 0;
+      background: #2e4053;
+    }
+
+    .village {
+      position: absolute;
+      right: 0;
+      bottom: 21px;
+      left: 0;
+      height: 63px;
+      opacity: .85;
+      background:
+        linear-gradient(135deg, transparent 44%, #242b4b 45% 55%, transparent 56%) 11% 0 / 42px 37px no-repeat,
+        linear-gradient(225deg, transparent 44%, #242b4b 45% 55%, transparent 56%) 11% 0 / 42px 37px no-repeat,
+        linear-gradient(#242b4b, #242b4b) 14% 30px / 35px 40px no-repeat,
+        linear-gradient(135deg, transparent 44%, #242b4b 45% 55%, transparent 56%) 79% 7px / 47px 42px no-repeat,
+        linear-gradient(225deg, transparent 44%, #242b4b 45% 55%, transparent 56%) 79% 7px / 47px 42px no-repeat,
+        linear-gradient(#242b4b, #242b4b) 82% 41px / 39px 32px no-repeat;
+    }
+
+    .app {
+      position: relative;
+      z-index: 1;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      padding: 36px 14px 10px;
+    }
+
+    .statusbar {
+      height: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 7px;
+      color: rgba(255,255,255,.92);
+      font-family: var(--font-num);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .02em;
+    }
+
+    .status-icons { display: flex; align-items: center; gap: 5px; font-size: 10px; }
+    .signal { letter-spacing: -2px; font-size: 13px; }
+    .battery { width: 18px; height: 9px; border: 1px solid currentColor; border-radius: 3px; position: relative; }
+    .battery::before { position: absolute; inset: 1px 3px 1px 1px; content: ""; background: currentColor; border-radius: 1px; }
+    .battery::after { position: absolute; top: 2px; right: -3px; width: 2px; height: 3px; content: ""; background: currentColor; }
+
+    .topbar {
+      height: 49px;
+      flex: none;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+
+    .icon-button {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      flex: none;
+      place-items: center;
+      border: 2px solid var(--ink);
+      border-radius: 12px;
+      background: var(--paper);
+      box-shadow: 0 2px 0 var(--ink);
+      font-size: 18px;
+      font-weight: 900;
+    }
+
+    .brand {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--paper);
+      text-shadow: 0 2px 0 rgba(25,24,54,.55);
+    }
+
+    .brand-mark { font-size: 20px; filter: drop-shadow(0 2px 0 var(--ink)); }
+    .brand-name { font-family: var(--font-display); font-size: 17px; letter-spacing: .01em; }
+    .top-spacer { flex: 1; }
+
+    .view-toggle {
+      flex: none;
+      padding: 6px 9px;
+      border: 2px solid var(--ink);
+      border-radius: 999px;
+      background: var(--sheriff);
+      box-shadow: 0 2px 0 var(--ink);
+      font-size: 10px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .match-meta {
+      min-height: 25px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 3px 7px;
+      color: rgba(255,255,255,.88);
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .match-name { display: flex; align-items: center; gap: 6px; }
+    .match-id { color: #d9dbf2; font-family: var(--font-num); font-weight: 800; }
+    .finished {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 7px;
+      border: 1px solid rgba(255,255,255,.45);
+      border-radius: 999px;
+      color: #f8f3d3;
+      background: rgba(35,38,79,.22);
+      font-size: 9px;
+    }
+
+    .roster {
+      flex: none;
+      overflow: hidden;
+      margin: 0 -14px;
+      padding: 1px 14px 10px;
+    }
+
+    .roster-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 0 2px 7px;
+      color: rgba(255,255,255,.86);
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: .04em;
+    }
+
+    .alive-count { color: #cfefca; font-weight: 700; }
+    .seat-list { display: flex; gap: 7px; overflow-x: auto; padding: 1px 2px 5px; scrollbar-width: none; }
+    .seat-list::-webkit-scrollbar { display: none; }
+
+    .seat {
+      width: 47px;
+      min-width: 47px;
+      height: 61px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1px;
+      border: 2px solid var(--ink);
+      border-radius: 13px;
+      background: var(--paper);
+      box-shadow: 0 2px 0 var(--ink);
+    }
+
+    .seat.active { outline: 2px solid var(--sheriff); outline-offset: 1px; transform: translateY(-2px); }
+    .seat.dead { opacity: .52; filter: grayscale(.9); }
+    .seat-emoji { font-size: 23px; line-height: 1; }
+    .seat-no { color: #77728a; font-family: var(--font-num); font-size: 10px; font-weight: 800; }
+
+    .seat-crown {
+      position: absolute;
+      top: -9px;
+      right: -6px;
+      font-size: 15px;
+      filter: drop-shadow(0 1px 0 var(--ink));
+    }
+
+    .seat-dot {
+      position: absolute;
+      right: 3px;
+      bottom: 4px;
+      width: 6px;
+      height: 6px;
+      border: 1px solid var(--ink);
+      border-radius: 50%;
+      background: var(--seer);
+    }
+
+    .phase-card {
+      position: relative;
+      min-height: 51px;
+      flex: none;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin: 0 0 9px;
+      padding: 8px 12px;
+      overflow: hidden;
+      border: var(--outline);
+      border-radius: 14px;
+      color: var(--paper);
+      background:
+        repeating-linear-gradient(172deg, transparent 0 8px, rgba(255,255,255,.045) 9px 10px),
+        linear-gradient(180deg, #b98a5a, #a4764a);
+      box-shadow: 0 3px 0 var(--ink);
+    }
+
+    .phase-card::before, .phase-card::after {
+      position: absolute;
+      top: 50%;
+      width: 6px;
+      height: 6px;
+      content: "";
+      transform: translateY(-50%);
+      border-radius: 50%;
+      background: var(--ink);
+    }
+
+    .phase-card::before { left: 6px; }
+    .phase-card::after { right: 6px; }
+    .phase-icon { margin-left: 4px; font-size: 22px; }
+    .phase-copy { min-width: 0; flex: 1; }
+    .phase-label { font-family: var(--font-display); font-size: 15px; letter-spacing: .03em; }
+    .phase-sub { margin-top: 1px; color: rgba(255,248,231,.8); font-size: 9px; font-weight: 700; }
+
+    .day-chip {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 2px;
+      padding: 3px 8px;
+      border: 2px solid var(--ink);
+      border-radius: 999px;
+      color: var(--ink);
+      background: var(--paper);
+      box-shadow: 0 2px 0 var(--ink);
+      white-space: nowrap;
+    }
+
+    .day-chip span { font-size: 9px; font-weight: 900; }
+    .day-chip strong { font-family: var(--font-num); font-size: 15px; line-height: 1; }
+
+    .transcript {
+      min-height: 0;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow: hidden;
+      padding: 12px 10px 11px;
+      border: var(--outline);
+      border-radius: 19px 19px 13px 13px;
+      background:
+        radial-gradient(ellipse at 100% 0%, rgba(241,230,200,.5), transparent 38%),
+        var(--paper);
+      box-shadow: 0 4px 0 var(--ink);
+    }
+
+    .transcript-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex: none;
+      padding: 0 2px 8px;
+      border-bottom: 1px dashed #c9bd9a;
+    }
+
+    .transcript-title { font-size: 11px; font-weight: 900; }
+    .transcript-count { color: #8a85a0; font-family: var(--font-num); font-size: 10px; font-weight: 800; }
+    .narration { align-self: center; max-width: 96%; padding: 5px 10px; border: 1.5px dashed #c9bd9a; border-radius: 999px; color: #6f6a85; background: var(--paper-dim); font-size: 10px; font-weight: 700; text-align: center; }
+
+    .message {
+      display: flex;
+      align-items: flex-end;
+      gap: 7px;
+    }
+
+    .message.right { flex-direction: row-reverse; }
+
+    .avatar {
+      width: 31px;
+      height: 31px;
+      display: grid;
+      flex: none;
+      place-items: center;
+      border: 2px solid var(--ink);
+      border-radius: 50%;
+      background: var(--paper-dim);
+      font-size: 18px;
+    }
+
+    .bubble {
+      max-width: 82%;
+      padding: 7px 9px 8px;
+      border: 2px solid var(--ink);
+      border-radius: 4px 13px 13px 13px;
+      background: #fff;
+      box-shadow: 0 2px 0 var(--ink);
+    }
+
+    .message.right .bubble { border-radius: 13px 4px 13px 13px; }
+    .who { margin: 0 0 3px; color: #8a85a0; font-size: 9px; font-weight: 900; }
+    .bubble p:last-child { margin: 0; }
+    .message-copy { color: var(--ink); font-size: 11px; line-height: 1.58; }
+    .sheriff-tag { display: inline-block; margin-left: 3px; padding: 0 5px; border: 1px solid var(--ink); border-radius: 999px; background: var(--sheriff); color: var(--ink); font-size: 8px; vertical-align: 1px; }
+
+    .vote-card {
+      flex: none;
+      padding: 9px 10px 8px;
+      border: 2px solid var(--ink);
+      border-radius: 13px;
+      background: var(--paper);
+      box-shadow: var(--hard-shadow);
+    }
+
+    .vote-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .vote-title { font-family: var(--font-display); font-size: 13px; }
+    .vote-round { color: #89849b; font-family: var(--font-num); font-size: 9px; font-weight: 800; }
+
+    .vote-row {
+      display: grid;
+      grid-template-columns: 68px 1fr 20px;
+      align-items: center;
+      gap: 7px;
+      margin-top: 5px;
+      font-size: 9px;
+    }
+
+    .vote-name { overflow: hidden; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+    .track { height: 10px; overflow: hidden; border: 1.5px solid var(--ink); border-radius: 999px; background: var(--paper-dim); }
+    .fill { height: 100%; border-right: 1.5px solid var(--ink); border-radius: 999px; background: var(--good); }
+    .fill.wolf { background: var(--wolf); }
+    .vote-number { text-align: right; font-family: var(--font-num); font-size: 12px; font-weight: 800; }
+    .vote-result { margin-top: 7px; padding-top: 6px; border-top: 1px dashed #c9bd9a; color: #bd4765; font-size: 9px; font-weight: 900; }
+
+    .bottom-panel {
+      flex: none;
+      margin: 11px -14px -10px;
+      padding: 8px 15px 10px;
+      border-top: 1px solid rgba(255,255,255,.32);
+      background: rgba(31,34,69,.86);
+      backdrop-filter: blur(12px);
+    }
+
+    .progress-meta { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; color: rgba(255,255,255,.83); font-size: 9px; font-weight: 700; }
+    .progress-meta strong { color: #fff8e7; font-family: var(--font-num); font-size: 11px; }
+    .progress-track { height: 4px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.22); }
+    .progress-value { width: 57%; height: 100%; border-radius: inherit; background: var(--sheriff); }
+
+    .chapter-list { display: flex; gap: 6px; overflow: hidden; padding: 8px 0 7px; }
+    .chapter {
+      flex: none;
+      padding: 5px 9px;
+      border: 1.5px solid rgba(255,255,255,.34);
+      border-radius: 999px;
+      color: #d1d0e3;
+      background: rgba(255,255,255,.09);
+      font-size: 9px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .chapter.current { border-color: var(--paper); color: var(--ink); background: var(--paper); }
+    .transport { display: grid; grid-template-columns: 37px 1fr 37px; align-items: center; gap: 9px; }
+
+    .step-button {
+      width: 35px;
+      height: 35px;
+      display: grid;
+      place-items: center;
+      border: 2px solid var(--ink);
+      border-radius: 50%;
+      background: var(--paper);
+      box-shadow: 0 2px 0 var(--ink);
+      font-size: 18px;
+      font-weight: 900;
+    }
+
+    .play-button {
+      min-height: 36px;
+      border: 2px solid var(--ink);
+      border-radius: 999px;
+      color: #fff;
+      background: #4f9c6d;
+      box-shadow: 0 2px 0 var(--ink);
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .home-indicator {
+      width: 107px;
+      height: 4px;
+      margin: 10px auto 0;
+      border-radius: 999px;
+      background: rgba(255,255,255,.78);
+    }
+
+    .spec-note {
+      align-self: end;
+      padding-bottom: 22px;
+      color: #e9e5ff;
+    }
+
+    .spec-note h2 {
+      margin: 0 0 16px;
+      color: #f5c542;
+      font-family: var(--font-num);
+      font-size: 12px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    .spec-list { display: grid; gap: 14px; margin: 0; }
+    .spec-list div { padding-left: 12px; border-left: 2px solid rgba(255,255,255,.18); }
+    .spec-list dt { margin-bottom: 4px; font-size: 12px; font-weight: 900; }
+    .spec-list dd { margin: 0; color: #b8b8d0; font-size: 11px; line-height: 1.7; }
+
+    .mobile-caption { display: none; }
+
+    @media (max-width: 960px) {
+      .presentation { grid-template-columns: 1fr 390px; gap: 28px; }
+      .spec-note { display: none; }
+      .design-note h1 { font-size: 36px; }
+    }
+
+    @media (max-width: 640px) {
+      html, body { min-width: 320px; background: #20213c; }
+      .presentation { display: block; min-height: 100svh; padding: 0; }
+      .design-note, .spec-note { display: none; }
+      .device {
+        width: 100%;
+        height: 100svh;
+        min-height: 680px;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+      }
+      .device::before { display: none; }
+      .app { padding-top: max(14px, env(safe-area-inset-top)); padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+      .moon { top: 91px; }
+      .bottom-panel { margin-bottom: -8px; padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+      .home-indicator { display: none; }
+      .transcript { gap: 9px; }
+    }
+
+    @media (max-height: 760px) and (min-width: 641px) {
+      .device { height: calc(100vh - 24px); min-height: 0; }
+      .roster { padding-bottom: 6px; }
+      .seat { height: 54px; }
+      .bottom-panel { padding-top: 6px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="presentation">
+    <section class="design-note" aria-label="设计说明">
+      <span class="eyebrow">Mobile replay · 01</span>
+      <h1>把整张牌桌，<br />收进掌心。</h1>
+      <p>为 AI 狼人杀复盘设计的单手移动观赛界面。保留有辨识度的昼夜舞台与贴纸质感，让观众始终先看见正在发生的对话。</p>
+      <ul class="principles">
+        <li><span>01</span> 对话优先，角色信息横向浏览</li>
+        <li><span>02</span> 进度与播放控制固定在拇指区</li>
+        <li><span>03</span> 上帝视角明确标识，信息层级不串线</li>
+      </ul>
+    </section>
+
+    <article class="device" aria-label="whoisspy 移动端对局复盘页面设计稿">
+      <div class="sky" aria-hidden="true">
+        <div class="stars"></div>
+        <div class="moon"></div>
+        <div class="hills"></div>
+        <div class="village"></div>
+      </div>
+
+      <div class="app">
+        <div class="statusbar" aria-hidden="true">
+          <span>9:41</span>
+          <span class="status-icons"><span class="signal">▂▄▆</span><span>◉</span><span class="battery"></span></span>
+        </div>
+
+        <header class="topbar">
+          <button class="icon-button" aria-label="返回">‹</button>
+          <div class="brand"><span class="brand-mark">🐺</span><span class="brand-name">whoisspy</span></div>
+          <span class="top-spacer"></span>
+          <button class="view-toggle" aria-label="当前为上帝视角">👁 上帝视角</button>
+          <button class="icon-button" aria-label="更多选项">···</button>
+        </header>
+
+        <div class="match-meta">
+          <span class="match-name"><span class="match-id">#3</span><span>标准 9 人局</span></span>
+          <span class="finished">● 已结束</span>
+        </div>
+
+        <section class="roster" aria-label="玩家座位，横向滑动">
+          <div class="roster-head">
+            <span>牌桌玩家</span>
+            <span class="alive-count">存活 5 / 9</span>
+          </div>
+          <div class="seat-list">
+            <div class="seat dead"><span class="seat-emoji">🦊</span><span class="seat-no">01</span></div>
+            <div class="seat"><span class="seat-emoji">🦉</span><span class="seat-no">02</span><i class="seat-crown">🏅</i></div>
+            <div class="seat"><span class="seat-emoji">🐻</span><span class="seat-no">03</span></div>
+            <div class="seat dead"><span class="seat-emoji">🐱</span><span class="seat-no">04</span></div>
+            <div class="seat active"><span class="seat-emoji">🦁</span><span class="seat-no">05</span><i class="seat-dot"></i></div>
+            <div class="seat"><span class="seat-emoji">🐰</span><span class="seat-no">06</span></div>
+            <div class="seat dead"><span class="seat-emoji">🐢</span><span class="seat-no">07</span></div>
+            <div class="seat"><span class="seat-emoji">🐮</span><span class="seat-no">08</span></div>
+            <div class="seat"><span class="seat-emoji">🐙</span><span class="seat-no">09</span></div>
+          </div>
+        </section>
+
+        <section class="phase-card" aria-label="当前阶段：第二天，放逐投票">
+          <span class="phase-icon">☀️</span>
+          <div class="phase-copy">
+            <div class="phase-label">放逐投票</div>
+            <div class="phase-sub">第二天 · 白昼仍在继续</div>
+          </div>
+          <span class="day-chip"><span>第</span><strong>2</strong><span>天</span></span>
+        </section>
+
+        <section class="transcript" aria-label="对局对话预览">
+          <header class="transcript-head">
+            <span class="transcript-title">牌桌现场</span>
+            <span class="transcript-count">本幕 · 08 条记录</span>
+          </header>
+          <p class="narration">🗳️ 请各位玩家投票放逐一名玩家</p>
+
+          <div class="message">
+            <span class="avatar">🐻</span>
+            <div class="bubble">
+              <p class="who">03 号 · 老好人</p>
+              <p class="message-copy">我还是觉得 1 号的发言太像提前准备好的了，票先挂他。</p>
+            </div>
+          </div>
+
+          <div class="message right">
+            <span class="avatar">🦁</span>
+            <div class="bubble">
+              <p class="who">05 号 · 戏精上校 <span class="sheriff-tag">警长</span></p>
+              <p class="message-copy">别急着跟票。听完 8 号再下判断，我这轮会投 1 号。</p>
+            </div>
+          </div>
+
+          <div class="message">
+            <span class="avatar">🐮</span>
+            <div class="bubble">
+              <p class="who">08 号 · 大嗓门</p>
+              <p class="message-copy">警长这次说得有道理。1 号的悍跳我从早上就不认。</p>
+            </div>
+          </div>
+
+          <section class="vote-card" aria-label="放逐投票结果">
+            <div class="vote-head">
+              <span class="vote-title">🗳️ 放逐投票</span>
+              <span class="vote-round">ROUND 02</span>
+            </div>
+            <div class="vote-row">
+              <span class="vote-name">🦊 01 林间狐</span>
+              <span class="track"><span class="fill wolf" style="display:block;width:100%"></span></span>
+              <strong class="vote-number">4</strong>
+            </div>
+            <div class="vote-row">
+              <span class="vote-name">🐢 07 数学家</span>
+              <span class="track"><span class="fill" style="display:block;width:75%"></span></span>
+              <strong class="vote-number">3</strong>
+            </div>
+            <div class="vote-row">
+              <span class="vote-name">🐙 09 老阴币</span>
+              <span class="track"><span class="fill" style="display:block;width:50%"></span></span>
+              <strong class="vote-number">2</strong>
+            </div>
+            <p class="vote-result">⚖️ 01 号「林间狐」被放逐出局</p>
+          </section>
+        </section>
+
+        <footer class="bottom-panel" aria-label="复盘段落导航">
+          <div class="progress-meta">
+            <span>对局进度</span>
+            <strong>04 <span style="color:#c9c8de;font-weight:500">/ 07</span></strong>
+          </div>
+          <div class="progress-track"><div class="progress-value"></div></div>
+          <div class="chapter-list" aria-label="章节">
+            <span class="chapter">第 1 夜</span>
+            <span class="chapter">警长竞选</span>
+            <span class="chapter current">放逐投票</span>
+            <span class="chapter">第 2 夜</span>
+          </div>
+          <div class="transport">
+            <button class="step-button" aria-label="上一幕">‹</button>
+            <button class="play-button" aria-label="自动播放">▶　自动播放</button>
+            <button class="step-button" aria-label="下一幕">›</button>
+          </div>
+          <div class="home-indicator" aria-hidden="true"></div>
+        </footer>
+      </div>
+    </article>
+
+    <aside class="spec-note" aria-label="适配说明">
+      <h2>Mobile rules</h2>
+      <dl class="spec-list">
+        <div><dt>牌桌玩家</dt><dd>桌面双侧座位列改为横向滑动座位带，出局与警长状态仍一眼可辨。</dd></div>
+        <div><dt>对话剧场</dt><dd>单列纵向阅读，压缩次要元数据；对话、旁白和投票结果留在同一条复盘脉络。</dd></div>
+        <div><dt>拇指导航</dt><dd>段落进度与上一幕、播放、下一幕固定在屏幕底部，不遮挡主内容。</dd></div>
+        <div><dt>信息边界</dt><dd>视角入口常驻顶栏；本稿展示上帝视角样式，沉浸视角应移除敏感信息标识。</dd></div>
+      </dl>
+    </aside>
+  </main>
+</body>
+</html>

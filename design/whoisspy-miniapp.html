@@ -1,0 +1,1163 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#222440" />
+  <title>whoisspy · 小程序完整观赛 UI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Noto+Sans+SC:wght@400;500;700;900&family=ZCOOL+KuaiLe&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #2d2a3e;
+      --paper: #fff8e7;
+      --paper-dim: #f1e6c8;
+      --sky-day-top: #6fc2f0;
+      --sky-day-bottom: #d6f0fb;
+      --sky-night-top: #1e2050;
+      --sky-night-bottom: #4a4f8f;
+      --sun: #ffd75e;
+      --moon: #f5e960;
+      --grass-day: #8ccb6e;
+      --grass-night: #3a4a52;
+      --village-day: #79b364;
+      --village-night: #262c4e;
+      --wolf: #e4577e;
+      --good: #f2a93b;
+      --seer: #5b8def;
+      --witch: #59b57c;
+      --sheriff: #f5c542;
+      --dead: #9b97a8;
+      --ink-soft: #77728a;
+      --font-display: "ZCOOL KuaiLe", "Noto Sans SC", sans-serif;
+      --font-body: "Noto Sans SC", sans-serif;
+      --font-num: "Baloo 2", "Noto Sans SC", sans-serif;
+      --line: 2.5px solid var(--ink);
+      --pop: 0 3px 0 var(--ink);
+      --pop-sm: 0 2px 0 var(--ink);
+    }
+
+    * { box-sizing: border-box; }
+    html { min-width: 320px; scroll-behavior: smooth; }
+    body {
+      min-width: 320px;
+      margin: 0;
+      color: #f7f2ff;
+      font-family: var(--font-body);
+      background:
+        radial-gradient(1.5px 1.5px at 8% 16%, rgba(255,248,231,.7) 98%, transparent),
+        radial-gradient(1px 1px at 35% 8%, rgba(255,248,231,.5) 98%, transparent),
+        radial-gradient(1.5px 1.5px at 82% 25%, rgba(255,248,231,.45) 98%, transparent),
+        radial-gradient(ellipse at 50% -10%, #45476f 0, #242641 52%, #1d1f36 100%);
+      background-attachment: fixed;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    button, input { font: inherit; }
+    :focus-visible { outline: 3px solid var(--sheriff); outline-offset: 3px; }
+    [id] { scroll-margin-top: 88px; }
+
+    .board {
+      width: min(1500px, 100%);
+      margin: 0 auto;
+      padding: 56px 32px 76px;
+    }
+
+    .board-intro {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(230px, 360px);
+      align-items: end;
+      gap: 32px;
+      margin-bottom: 26px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      margin: 0 0 13px;
+      color: #b7c3f7;
+      font-family: var(--font-num);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .16em;
+    }
+
+    .eyebrow::before {
+      width: 24px;
+      height: 2px;
+      content: "";
+      background: var(--sheriff);
+    }
+
+    .board h1 {
+      margin: 0;
+      color: var(--paper);
+      font-family: var(--font-display);
+      font-size: clamp(34px, 5vw, 58px);
+      font-weight: 400;
+      line-height: 1.14;
+      letter-spacing: .015em;
+    }
+
+    .board-summary {
+      margin: 0 0 4px;
+      color: #c1bfd5;
+      font-size: 13px;
+      line-height: 1.9;
+    }
+
+    .board-summary strong { color: var(--paper); }
+
+    .screen-index {
+      position: sticky;
+      z-index: 20;
+      top: 10px;
+      display: flex;
+      gap: 7px;
+      overflow-x: auto;
+      margin: 0 -8px 32px;
+      padding: 9px 8px 12px;
+      scrollbar-width: none;
+      background: linear-gradient(180deg, rgba(34,36,64,.96), rgba(34,36,64,.76));
+      backdrop-filter: blur(12px);
+    }
+
+    .screen-index::-webkit-scrollbar { display: none; }
+
+    .screen-index a {
+      flex: none;
+      padding: 8px 12px;
+      border: 1.5px solid rgba(255,248,231,.3);
+      border-radius: 999px;
+      color: #dfdced;
+      background: rgba(255,255,255,.06);
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+      transition: background .16s ease, color .16s ease, transform .16s ease;
+    }
+
+    .screen-index a:hover {
+      transform: translateY(-1px);
+      color: var(--ink);
+      background: var(--paper);
+    }
+
+    .screen-gallery {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      align-items: start;
+      gap: 38px 26px;
+    }
+
+    .artboard { min-width: 0; }
+
+    .artboard-heading {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 0 4px 12px;
+    }
+
+    .artboard-heading h2 {
+      margin: 0;
+      color: var(--paper);
+      font-family: var(--font-display);
+      font-size: 20px;
+      font-weight: 400;
+      letter-spacing: .025em;
+    }
+
+    .artboard-heading span {
+      color: #9897b3;
+      font-family: var(--font-num);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .08em;
+    }
+
+    .device {
+      position: relative;
+      width: 100%;
+      max-width: 410px;
+      height: 844px;
+      margin: 0 auto;
+      overflow: hidden;
+      isolation: isolate;
+      border: 6px solid #111321;
+      border-radius: 34px;
+      background: var(--sky-day-bottom);
+      box-shadow: 0 22px 48px rgba(5,7,22,.42), 0 0 0 1px rgba(255,255,255,.12);
+    }
+
+    .device::before {
+      position: absolute;
+      z-index: 30;
+      top: 0;
+      left: 50%;
+      width: 112px;
+      height: 24px;
+      content: "";
+      transform: translateX(-50%);
+      border-radius: 0 0 16px 16px;
+      background: #111321;
+    }
+
+    .screen {
+      position: relative;
+      isolation: isolate;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      color: var(--ink);
+      background: var(--paper);
+    }
+
+    .screen--sky {
+      background:
+        radial-gradient(ellipse at 70% 15%, rgba(255,255,255,.56), transparent 33%),
+        linear-gradient(180deg, var(--sky-day-top), var(--sky-day-bottom) 74%, #a5d4c4);
+    }
+
+    .screen--night {
+      color: var(--paper);
+      background:
+        radial-gradient(ellipse at 75% 15%, rgba(137,144,207,.42), transparent 35%),
+        linear-gradient(180deg, var(--sky-night-top), var(--sky-night-bottom) 78%, #5a648b);
+    }
+
+    .screen--warm {
+      background:
+        radial-gradient(ellipse at 48% 0%, rgba(255,215,94,.24), transparent 38%),
+        linear-gradient(180deg, #f4c76b 0%, #f5e5bd 50%, var(--paper) 100%);
+    }
+
+    .statusbar {
+      z-index: 1;
+      height: 29px;
+      flex: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 19px 0;
+      color: currentColor;
+      font-family: var(--font-num);
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .status-right { display: flex; align-items: center; gap: 5px; }
+    .signal { font-size: 11px; letter-spacing: -2px; }
+    .battery {
+      position: relative;
+      width: 17px;
+      height: 8px;
+      border: 1px solid currentColor;
+      border-radius: 2px;
+    }
+
+    .battery::before {
+      position: absolute;
+      inset: 1px 3px 1px 1px;
+      content: "";
+      border-radius: 1px;
+      background: currentColor;
+    }
+
+    .battery::after {
+      position: absolute;
+      top: 2px;
+      right: -3px;
+      width: 2px;
+      height: 3px;
+      content: "";
+      background: currentColor;
+    }
+
+    .phone-header {
+      min-height: 48px;
+      flex: none;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 4px 16px 8px;
+    }
+
+    .back {
+      width: 31px;
+      height: 31px;
+      display: grid;
+      flex: none;
+      place-items: center;
+      border: 2px solid var(--ink);
+      border-radius: 11px;
+      color: var(--ink);
+      background: var(--paper);
+      box-shadow: var(--pop-sm);
+      font-size: 19px;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .phone-title {
+      min-width: 0;
+      flex: 1;
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: 17px;
+      font-weight: 400;
+    }
+
+    .wordmark {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: inherit;
+      font-family: var(--font-display);
+      font-size: 17px;
+      text-shadow: 0 1px 0 rgba(255,255,255,.3);
+    }
+
+    .wordmark-icon { font-size: 20px; filter: drop-shadow(0 2px 0 var(--ink)); }
+    .grow { flex: 1; }
+    .screen-content { min-height: 0; flex: 1; }
+
+    .small-label {
+      color: var(--ink-soft);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .04em;
+    }
+
+    .sticker {
+      border: var(--line);
+      border-radius: 15px;
+      background: var(--paper);
+      box-shadow: var(--pop);
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 9px;
+      border: 1.5px solid var(--ink);
+      border-radius: 999px;
+      color: var(--ink);
+      background: var(--paper);
+      font-size: 9px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .primary-link, .secondary-link, .share-link {
+      min-height: 42px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      padding: 9px 14px;
+      border: var(--line);
+      border-radius: 999px;
+      color: var(--ink);
+      background: var(--sheriff);
+      box-shadow: var(--pop);
+      font-size: 12px;
+      font-weight: 900;
+      text-align: center;
+    }
+
+    .secondary-link {
+      background: var(--paper);
+    }
+
+    .share-link {
+      color: white;
+      background: #58a56d;
+    }
+
+    .sky-decoration {
+      position: absolute;
+      z-index: -1;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .sky-decoration::before {
+      position: absolute;
+      top: 100px;
+      right: 33px;
+      width: 48px;
+      height: 48px;
+      content: "";
+      border-radius: 50%;
+      background: var(--sun);
+      box-shadow: 0 0 0 8px rgba(255,215,94,.22), 0 0 0 16px rgba(255,215,94,.1);
+    }
+
+    .screen--night .sky-decoration::before {
+      background: var(--moon);
+      box-shadow: 0 0 0 8px rgba(245,233,96,.14), 0 0 0 16px rgba(245,233,96,.07);
+    }
+
+    .sky-decoration::after {
+      position: absolute;
+      right: -18%;
+      bottom: 0;
+      left: -18%;
+      height: 115px;
+      content: "";
+      border-radius: 50% 50% 0 0 / 30% 30% 0 0;
+      background: var(--grass-day);
+      box-shadow: inset 90px 16px 0 -4px rgba(255,255,255,.08);
+    }
+
+    .screen--night .sky-decoration::after { background: var(--grass-night); }
+
+    .village-line {
+      position: absolute;
+      z-index: 0;
+      right: 0;
+      bottom: 34px;
+      left: 0;
+      height: 57px;
+      opacity: .84;
+      background:
+        linear-gradient(135deg, transparent 43%, var(--village-day) 44% 57%, transparent 58%) 8% 2px / 46px 38px no-repeat,
+        linear-gradient(225deg, transparent 43%, var(--village-day) 44% 57%, transparent 58%) 8% 2px / 46px 38px no-repeat,
+        linear-gradient(var(--village-day), var(--village-day)) 12% 34px / 38px 30px no-repeat,
+        linear-gradient(135deg, transparent 43%, var(--village-day) 44% 57%, transparent 58%) 80% 8px / 52px 43px no-repeat,
+        linear-gradient(225deg, transparent 43%, var(--village-day) 44% 57%, transparent 58%) 80% 8px / 52px 43px no-repeat,
+        linear-gradient(var(--village-day), var(--village-day)) 84% 43px / 42px 24px no-repeat;
+    }
+
+    .screen--night .village-line {
+      background:
+        linear-gradient(135deg, transparent 43%, var(--village-night) 44% 57%, transparent 58%) 8% 2px / 46px 38px no-repeat,
+        linear-gradient(225deg, transparent 43%, var(--village-night) 44% 57%, transparent 58%) 8% 2px / 46px 38px no-repeat,
+        linear-gradient(var(--village-night), var(--village-night)) 12% 34px / 38px 30px no-repeat,
+        linear-gradient(135deg, transparent 43%, var(--village-night) 44% 57%, transparent 58%) 80% 8px / 52px 43px no-repeat,
+        linear-gradient(225deg, transparent 43%, var(--village-night) 44% 57%, transparent 58%) 80% 8px / 52px 43px no-repeat,
+        linear-gradient(var(--village-night), var(--village-night)) 84% 43px / 42px 24px no-repeat;
+    }
+
+    .home-indicator {
+      width: 100px;
+      height: 4px;
+      flex: none;
+      align-self: center;
+      margin: 8px 0 5px;
+      border-radius: 999px;
+      background: currentColor;
+      opacity: .62;
+    }
+
+    /* 01 启动页 */
+    .launch-screen {
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      color: var(--paper);
+      text-align: center;
+    }
+
+    .launch-screen .sky-decoration::before { top: 138px; right: 50px; width: 54px; height: 54px; }
+    .launch-content { position: relative; z-index: 2; width: 100%; margin-top: -22px; }
+    .launch-mark { margin-bottom: 7px; font-size: 61px; filter: drop-shadow(0 5px 0 var(--ink)); }
+    .launch-title { margin: 0; font-family: var(--font-display); font-size: 40px; font-weight: 400; letter-spacing: .02em; }
+    .launch-subtitle { margin: 8px 0 35px; color: rgba(255,248,231,.84); font-size: 12px; letter-spacing: .15em; }
+    .launch-progress { width: 76%; margin: 0 auto; text-align: left; }
+    .launch-progress-head { display: flex; justify-content: space-between; margin-bottom: 7px; font-size: 10px; font-weight: 700; }
+    .loading-track { height: 13px; padding: 2px; border: 2px solid var(--ink); border-radius: 999px; background: rgba(255,248,231,.75); box-shadow: 0 2px 0 var(--ink); }
+    .loading-fill { width: 78%; height: 100%; border-radius: inherit; background: var(--sheriff); }
+    .loading-note { margin: 15px 0 0; color: rgba(255,248,231,.82); font-size: 11px; }
+    .loading-stars { position: absolute; top: 24%; left: 19%; color: #fff3bc; font-size: 16px; }
+    .loading-stars::after { position: absolute; top: 49px; left: 202px; content: "✦"; font-size: 11px; }
+    .launch-foot { position: absolute; z-index: 2; right: 0; bottom: 63px; left: 0; color: rgba(255,248,231,.72); font-size: 9px; }
+
+    /* 02 主菜单 */
+    .home-content { position: relative; z-index: 2; display: flex; flex-direction: column; height: 100%; padding: 8px 18px 0; }
+    .home-brand { margin-top: 35px; text-align: center; }
+    .home-brand .logo { display: block; margin-bottom: 3px; font-size: 51px; filter: drop-shadow(0 4px 0 var(--ink)); }
+    .home-brand h2 { margin: 0; color: var(--ink); font-family: var(--font-display); font-size: 34px; font-weight: 400; }
+    .home-brand p { margin: 4px 0 0; color: #57516b; font-size: 10px; font-weight: 700; letter-spacing: .12em; }
+    .home-actions { display: grid; gap: 10px; width: 88%; margin: 27px auto 0; }
+    .home-main-action { min-height: 50px; font-family: var(--font-display); font-size: 18px; }
+    .home-shortcuts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; }
+    .shortcut {
+      min-height: 78px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px;
+      border: var(--line);
+      border-radius: 15px;
+      color: var(--ink);
+      background: var(--paper);
+      box-shadow: var(--pop-sm);
+    }
+    .shortcut-icon { font-size: 25px; }
+    .shortcut strong { display: block; font-size: 11px; font-weight: 900; }
+    .shortcut small { display: block; margin-top: 3px; color: var(--ink-soft); font-size: 8px; }
+    .recent-match { width: 88%; margin: 18px auto 0; padding: 11px 12px; }
+    .recent-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .recent-head strong { font-size: 10px; }
+    .recent-head a { color: #77728a; font-size: 9px; font-weight: 700; }
+    .recent-row { display: flex; align-items: center; gap: 9px; }
+    .recent-avatar { width: 34px; height: 34px; display: grid; place-items: center; border: 2px solid var(--ink); border-radius: 50%; background: var(--paper-dim); font-size: 20px; }
+    .recent-info { flex: 1; }
+    .recent-info b { display: block; font-size: 10px; }
+    .recent-info small { color: var(--ink-soft); font-size: 8px; }
+    .recent-result { color: var(--wolf); font-size: 9px; font-weight: 900; }
+    .home-spacer { flex: 1; min-height: 30px; }
+    .village-quote { position: relative; z-index: 2; margin: 0 0 17px; color: #43583e; font-family: var(--font-display); font-size: 13px; text-align: center; }
+
+    /* 03 游戏选择 */
+    .select-screen { background: #f8f1df; }
+    .select-intro { padding: 5px 19px 13px; }
+    .select-intro h3 { margin: 0; font-family: var(--font-display); font-size: 23px; font-weight: 400; }
+    .select-intro p { margin: 4px 0 0; color: var(--ink-soft); font-size: 10px; line-height: 1.6; }
+    .mode-chip-row { display: flex; gap: 6px; overflow: hidden; padding: 0 18px 12px; }
+    .mode-chip { padding: 5px 10px; border: 1.5px solid var(--ink); border-radius: 999px; color: #716b81; background: white; font-size: 9px; font-weight: 800; white-space: nowrap; }
+    .mode-chip.active { color: var(--ink); background: #dff1ff; }
+    .game-grid-wrap { position: relative; min-height: 0; flex: 1; overflow: hidden; padding: 0 17px; }
+    .game-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; max-height: 100%; overflow-y: auto; padding: 2px 3px 22px 1px; scrollbar-width: thin; scrollbar-color: #c7bda2 transparent; }
+    .game-tile { min-height: 154px; position: relative; display: flex; flex-direction: column; align-items: flex-start; padding: 12px; border: var(--line); border-radius: 17px; background: var(--paper); box-shadow: var(--pop-sm); }
+    .game-tile.available { background: #fff8e7; }
+    .game-tile.locked { color: #89859a; background: #eee9dc; }
+    .game-emoji { align-self: center; margin: 2px 0 7px; font-size: 35px; filter: drop-shadow(0 2px 0 rgba(45,42,62,.24)); }
+    .game-tile h4 { margin: 0; font-size: 11px; font-weight: 900; }
+    .game-tile p { min-height: 25px; margin: 4px 0 8px; color: var(--ink-soft); font-size: 9px; line-height: 1.5; }
+    .game-tile .tile-cta { width: 100%; margin-top: auto; padding: 6px 4px; border: 1.5px solid var(--ink); border-radius: 999px; color: var(--ink); background: var(--sheriff); font-size: 9px; font-weight: 900; text-align: center; }
+    .game-tile.locked .tile-cta { color: #817c8f; background: #e4dfd2; }
+    .lock-mark { position: absolute; top: 9px; right: 9px; font-size: 14px; }
+    .scroll-cue { display: flex; justify-content: center; gap: 5px; padding: 7px 0 11px; color: #89849b; font-size: 8px; }
+    .scroll-cue::after { content: "↓"; color: var(--ink); font-size: 11px; }
+
+    /* 04 对局观战 */
+    .match-screen { color: var(--ink); background: #d5edfa; }
+    .match-screen .sky-decoration::after { height: 155px; }
+    .match-topline { display: flex; align-items: center; justify-content: space-between; padding: 0 15px 8px; color: #373754; font-size: 9px; font-weight: 800; }
+    .view-switch { padding: 5px 8px; border: 1.5px solid var(--ink); border-radius: 999px; background: var(--sheriff); box-shadow: var(--pop-sm); font-size: 8px; font-weight: 900; }
+    .phase-plaque { position: relative; display: flex; align-items: center; gap: 9px; margin: 0 14px 8px; padding: 8px 12px; border: var(--line); border-radius: 13px; color: var(--paper); background: repeating-linear-gradient(172deg, transparent 0 8px, rgba(255,255,255,.05) 9px 10px), linear-gradient(180deg, #b98a5a, #a4764a); box-shadow: var(--pop); }
+    .phase-plaque .phase-symbol { font-size: 20px; }
+    .phase-copy { min-width: 0; flex: 1; }
+    .phase-copy strong { display: block; font-family: var(--font-display); font-size: 14px; font-weight: 400; }
+    .phase-copy small { color: rgba(255,248,231,.82); font-size: 9px; }
+    .day-counter { padding: 4px 7px; border: 2px solid var(--ink); border-radius: 999px; color: var(--ink); background: var(--paper); font-family: var(--font-num); font-size: 11px; font-weight: 800; white-space: nowrap; }
+    .table-section { margin: 0 14px 8px; padding: 8px 9px 9px; border: 2px solid var(--ink); border-radius: 16px; background: rgba(255,248,231,.92); box-shadow: var(--pop-sm); }
+    .table-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .table-top strong { font-size: 9px; font-weight: 900; }
+    .table-top span { color: var(--ink-soft); font-size: 9px; }
+    .seat-ring { position: relative; height: 134px; display: grid; place-items: center; }
+    .table-center { width: 127px; height: 69px; display: grid; place-items: center; border: 2px dashed #9d8966; border-radius: 50%; color: #716451; background: #ecdfbe; font-family: var(--font-display); font-size: 11px; text-align: center; }
+    .table-center small { display: block; margin-top: -15px; font-family: var(--font-body); font-size: 7px; }
+    .seat-token { position: absolute; width: 38px; height: 41px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px solid var(--ink); border-radius: 11px; background: var(--paper); box-shadow: 0 2px 0 var(--ink); }
+    .seat-token i { font-style: normal; font-size: 18px; line-height: 1; }
+    .seat-token b { margin-top: 1px; color: #77728a; font-family: var(--font-num); font-size: 9px; line-height: 1; }
+    .seat-token.dead { opacity: .48; filter: grayscale(1); }
+    .seat-token.sheriff { outline: 2px solid var(--sheriff); outline-offset: 1px; }
+    .seat-token.speaking { z-index: 1; transform: translateY(-3px); border-color: var(--seer); box-shadow: 0 3px 0 var(--ink); }
+    .seat-token .crown { position: absolute; top: -9px; right: -7px; font-size: 12px; }
+    .seat-token .speaker-dot { position: absolute; right: 1px; bottom: 1px; width: 6px; height: 6px; border: 1px solid var(--ink); border-radius: 50%; background: var(--seer); }
+    .s1 { top: 4px; left: 50%; transform: translateX(-50%); }
+    .s2 { top: 21px; right: 19%; }
+    .s3 { top: 68px; right: 8%; }
+    .s4 { right: 20%; bottom: 2px; }
+    .s5 { bottom: 0; left: 50%; transform: translateX(-50%); }
+    .s6 { bottom: 2px; left: 20%; }
+    .s7 { top: 68px; left: 8%; }
+    .s8 { top: 21px; left: 19%; }
+    .s9 { top: 4px; left: 29%; }
+    .table-legend { display: flex; justify-content: center; gap: 12px; margin-top: 4px; color: #706b7e; font-size: 8px; }
+    .table-legend b { color: var(--ink); }
+    .feed-card { min-height: 0; flex: 1; display: flex; flex-direction: column; overflow: hidden; margin: 0 14px; padding: 9px 9px 8px; border: 2px solid var(--ink); border-radius: 16px 16px 10px 10px; background: var(--paper); box-shadow: var(--pop); }
+    .feed-head { display: flex; align-items: center; justify-content: space-between; padding-bottom: 6px; border-bottom: 1px dashed #c9bd9a; }
+    .feed-head strong { font-size: 9px; font-weight: 900; }
+    .feed-head span { color: var(--ink-soft); font-family: var(--font-num); font-size: 9px; font-weight: 800; }
+    .feed-list { display: flex; flex-direction: column; gap: 7px; overflow: hidden; padding-top: 7px; }
+    .system-line { align-self: center; max-width: 95%; padding: 4px 8px; border: 1.5px dashed #c9bd9a; border-radius: 999px; color: #6f6a85; background: var(--paper-dim); font-size: 9px; font-weight: 700; text-align: center; }
+    .speech-row { display: flex; align-items: flex-end; gap: 6px; }
+    .speech-row.right { flex-direction: row-reverse; }
+    .speech-avatar { width: 27px; height: 27px; display: grid; flex: none; place-items: center; border: 2px solid var(--ink); border-radius: 50%; background: var(--paper-dim); font-size: 16px; }
+    .speech-bubble { max-width: 82%; padding: 5px 7px; border: 2px solid var(--ink); border-radius: 4px 10px 10px 10px; background: white; box-shadow: 0 2px 0 var(--ink); }
+    .speech-row.right .speech-bubble { border-radius: 10px 4px 10px 10px; }
+    .speech-name { display: block; margin-bottom: 2px; color: #817c91; font-size: 8px; font-weight: 900; }
+    .speech-copy { margin: 0; font-size: 9px; line-height: 1.5; }
+    .sheriff-tag { margin-left: 3px; padding: 1px 4px; border: 1px solid var(--ink); border-radius: 999px; color: var(--ink); background: var(--sheriff); font-size: 6px; }
+    .vote-mini { margin-top: 7px; padding: 7px; border: 2px solid var(--ink); border-radius: 11px; background: #fffdf6; }
+    .vote-mini-head { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 8px; font-weight: 900; }
+    .vote-mini-row { display: grid; grid-template-columns: 63px 1fr 15px; align-items: center; gap: 5px; margin-top: 4px; font-size: 8px; }
+    .vote-mini-track { height: 7px; overflow: hidden; border: 1px solid var(--ink); border-radius: 99px; background: var(--paper-dim); }
+    .vote-mini-fill { height: 100%; background: var(--wolf); }
+    .vote-mini-num { font-family: var(--font-num); font-size: 9px; font-weight: 800; text-align: right; }
+    .director { flex: none; margin-top: 8px; padding: 8px 14px 5px; color: var(--paper); background: rgba(35,37,75,.94); }
+    .director-progress { display: flex; justify-content: space-between; margin-bottom: 5px; color: #d6d4e8; font-size: 9px; }
+    .director-progress b { color: var(--paper); font-family: var(--font-num); font-size: 10px; }
+    .progress-track { height: 4px; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.22); }
+    .progress-fill { width: 57%; height: 100%; border-radius: inherit; background: var(--sheriff); }
+    .chapter-strip { display: flex; gap: 5px; overflow: hidden; padding: 7px 0; }
+    .chapter-chip { flex: none; padding: 4px 7px; border: 1px solid rgba(255,255,255,.33); border-radius: 999px; color: #d4d2e4; font-size: 8px; white-space: nowrap; }
+    .chapter-chip.current { border-color: var(--paper); color: var(--ink); background: var(--paper); font-weight: 900; }
+    .director-buttons { display: grid; grid-template-columns: 30px 1fr 30px; gap: 8px; align-items: center; }
+    .round-control { width: 29px; height: 29px; display: grid; place-items: center; border: 2px solid var(--ink); border-radius: 50%; color: var(--ink); background: var(--paper); box-shadow: 0 2px 0 var(--ink); font-size: 15px; font-weight: 900; }
+    .play-control { height: 29px; border: 2px solid var(--ink); border-radius: 999px; color: white; background: var(--witch); box-shadow: 0 2px 0 var(--ink); font-size: 9px; font-weight: 900; text-align: center; }
+
+    /* 05 / 06 结算状态 */
+    .result-screen { text-align: center; }
+    .result-screen .sky-decoration::before { top: 85px; right: 50%; width: 64px; height: 64px; transform: translateX(50%); }
+    .result-screen .sky-decoration::after { height: 170px; }
+    .result-content { position: relative; z-index: 1; display: flex; flex-direction: column; height: 100%; padding: 12px 20px 0; }
+    .result-top { display: flex; align-items: center; justify-content: space-between; color: rgba(255,255,255,.9); font-size: 9px; font-weight: 800; }
+    .result-hero { margin: 36px 0 14px; }
+    .result-icon { width: 103px; height: 103px; display: grid; place-items: center; margin: 0 auto 14px; border: 4px solid var(--ink); border-radius: 50%; background: var(--paper); box-shadow: 0 6px 0 var(--ink), 0 0 0 8px rgba(255,255,255,.17); font-size: 54px; }
+    .result-screen h3 { margin: 0; color: white; font-family: var(--font-display); font-size: 31px; font-weight: 400; text-shadow: 0 3px 0 rgba(45,42,62,.5); }
+    .result-subtitle { margin: 6px 0 0; color: rgba(255,255,255,.86); font-size: 10px; }
+    .result-ribbon { display: inline-flex; align-self: center; gap: 6px; margin-top: 12px; padding: 5px 11px; border: 2px solid var(--ink); border-radius: 999px; color: var(--ink); background: var(--sheriff); box-shadow: var(--pop-sm); font-size: 9px; font-weight: 900; }
+    .result-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin: 0 0 11px; padding: 11px 8px; border: var(--line); border-radius: 15px; background: var(--paper); box-shadow: var(--pop); }
+    .result-stat + .result-stat { border-left: 1px dashed #c9bd9a; }
+    .result-stat strong { display: block; font-family: var(--font-num); font-size: 19px; line-height: 1.1; }
+    .result-stat span { display: block; margin-top: 3px; color: var(--ink-soft); font-size: 8px; }
+    .result-reason { margin: 0 0 12px; padding: 9px 10px; border: 1.5px dashed rgba(255,255,255,.7); border-radius: 11px; color: #fffdf4; background: rgba(38,41,79,.24); font-size: 9px; line-height: 1.6; }
+    .elimination-row { display: flex; justify-content: center; gap: 4px; margin: 0 0 14px; }
+    .elimination-row span { width: 26px; height: 26px; display: grid; place-items: center; border: 1.5px solid var(--ink); border-radius: 50%; background: var(--paper); font-family: var(--font-num); font-size: 9px; font-weight: 800; }
+    .result-actions { display: grid; gap: 8px; margin-top: auto; padding-bottom: 12px; }
+    .result-action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .result-actions .primary-link, .result-actions .secondary-link, .result-actions .share-link { min-height: 38px; font-size: 10px; }
+    .share-caption { margin: 0; color: rgba(255,255,255,.78); font-size: 8px; }
+    .result-loss .result-icon { background: #f0e7d2; }
+    .result-loss .result-ribbon { color: #fff; background: var(--wolf); }
+    .result-loss .result-subtitle { color: #fff5dc; }
+
+    /* 07 全局复盘 */
+    .replay-screen { background: #f6efdd; }
+    .replay-meta { display: flex; align-items: center; gap: 8px; margin: 0 15px 9px; padding: 9px; border: 2px solid var(--ink); border-radius: 13px; background: white; box-shadow: var(--pop-sm); }
+    .replay-avatar { width: 37px; height: 37px; display: grid; flex: none; place-items: center; border: 2px solid var(--ink); border-radius: 50%; background: #f1e6c8; font-size: 21px; }
+    .replay-match-copy { flex: 1; min-width: 0; }
+    .replay-match-copy strong { display: block; font-size: 9px; font-weight: 900; }
+    .replay-match-copy small { display: block; margin-top: 2px; color: var(--ink-soft); font-size: 7px; }
+    .win-chip { padding: 4px 6px; border: 1.5px solid var(--ink); border-radius: 999px; color: var(--wolf); background: #ffe6ec; font-size: 7px; font-weight: 900; white-space: nowrap; }
+    .replay-tabs { display: flex; gap: 6px; margin: 0 15px 9px; }
+    .replay-tab { padding: 5px 9px; border: 1.5px solid var(--ink); border-radius: 999px; color: #726d80; background: white; font-size: 8px; font-weight: 800; }
+    .replay-tab.active { color: var(--ink); background: #e3f1ff; }
+    .replay-progress { margin: 0 15px 9px; padding: 8px 9px; border: 2px solid var(--ink); border-radius: 12px; background: var(--paper); box-shadow: var(--pop-sm); }
+    .replay-progress-top { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 8px; font-weight: 900; }
+    .replay-progress-top b { font-family: var(--font-num); }
+    .replay-rail { position: relative; height: 5px; border-radius: 99px; background: #ddd4bd; }
+    .replay-rail::before { position: absolute; inset: 0 37% 0 0; content: ""; border-radius: inherit; background: var(--seer); }
+    .replay-chapters { display: flex; gap: 5px; margin: 0 15px 9px; overflow-x: auto; scrollbar-width: none; }
+    .replay-chapters::-webkit-scrollbar { display: none; }
+    .replay-chapters span { flex: none; padding: 5px 7px; border: 1.5px solid var(--ink); border-radius: 999px; color: #77728a; background: white; font-size: 8px; font-weight: 800; white-space: nowrap; }
+    .replay-chapters .active { color: var(--paper); background: var(--ink); }
+    .replay-feed { min-height: 0; flex: 1; overflow: hidden; margin: 0 15px; padding: 10px; border: 2px solid var(--ink); border-radius: 15px 15px 10px 10px; background: var(--paper); box-shadow: var(--pop); }
+    .replay-feed-title { display: flex; justify-content: space-between; padding-bottom: 7px; border-bottom: 1px dashed #c9bd9a; font-size: 9px; font-weight: 900; }
+    .replay-entry { display: flex; gap: 7px; margin-top: 8px; }
+    .replay-entry.right { flex-direction: row-reverse; }
+    .replay-entry .speech-avatar { width: 27px; height: 27px; }
+    .replay-entry .speech-bubble { max-width: 85%; }
+    .replay-vote { margin: 8px 0 0; padding: 7px; border: 1.5px solid var(--ink); border-radius: 10px; background: white; }
+    .replay-vote b { display: block; margin-bottom: 5px; font-size: 8px; }
+    .replay-vote-line { display: flex; justify-content: space-between; margin-top: 4px; font-size: 7px; }
+    .replay-footer { flex: none; padding: 8px 15px 5px; }
+    .replay-end-state { display: flex; align-items: center; justify-content: space-between; margin: 7px 0 0; padding: 7px 9px; border: 2px solid var(--ink); border-radius: 10px; background: #fff1cf; font-size: 8px; font-weight: 900; }
+
+    /* 08 设置 */
+    .settings-screen { background: #f8f2e3; }
+    .settings-banner { position: relative; overflow: hidden; margin: 0 15px 14px; padding: 14px 15px; border: var(--line); border-radius: 15px; color: var(--paper); background: linear-gradient(135deg, #30345f, #5c6296); box-shadow: var(--pop); }
+    .settings-banner::after { position: absolute; right: 8px; bottom: -31px; content: "🌙"; opacity: .35; font-size: 86px; }
+    .settings-banner strong { position: relative; z-index: 1; display: block; font-family: var(--font-display); font-size: 19px; font-weight: 400; }
+    .settings-banner span { position: relative; z-index: 1; display: block; margin-top: 3px; color: #d7d9f0; font-size: 8px; }
+    .settings-group { margin: 0 15px 12px; overflow: hidden; border: 2px solid var(--ink); border-radius: 14px; background: var(--paper); box-shadow: var(--pop-sm); }
+    .settings-group-title { margin: 0; padding: 9px 11px 5px; color: #77728a; font-size: 8px; font-weight: 900; letter-spacing: .08em; }
+    .setting-row { min-height: 43px; display: flex; align-items: center; gap: 8px; padding: 7px 11px; border-top: 1px solid #ebe2cc; }
+    .setting-icon { width: 22px; flex: none; font-size: 15px; text-align: center; }
+    .setting-copy { min-width: 0; flex: 1; }
+    .setting-copy strong { display: block; font-size: 9px; font-weight: 800; }
+    .setting-copy small { display: block; margin-top: 2px; color: var(--ink-soft); font-size: 7px; }
+    .switch { width: 34px; height: 19px; position: relative; flex: none; border: 1.5px solid var(--ink); border-radius: 999px; background: var(--witch); box-shadow: inset 0 -2px rgba(45,42,62,.1); }
+    .switch::after { position: absolute; top: 2px; right: 2px; width: 13px; height: 13px; content: ""; border: 1.5px solid var(--ink); border-radius: 50%; background: white; }
+    .volume-setting { display: block; padding: 10px 11px 12px; }
+    .volume-head { display: flex; align-items: center; justify-content: space-between; font-size: 9px; font-weight: 800; }
+    .volume-head span { color: var(--ink-soft); font-family: var(--font-num); }
+    .volume-track { height: 8px; position: relative; margin-top: 10px; border: 1.5px solid var(--ink); border-radius: 999px; background: var(--paper-dim); }
+    .volume-track::before { position: absolute; inset: 0 28% 0 0; content: ""; border-radius: inherit; background: var(--witch); }
+    .volume-track::after { position: absolute; top: 50%; left: 68%; width: 14px; height: 14px; content: ""; transform: translate(-50%,-50%); border: 2px solid var(--ink); border-radius: 50%; background: var(--paper); box-shadow: 0 1px 0 var(--ink); }
+    .setting-arrow { color: #9b97a8; font-size: 13px; }
+    .compliance-note { margin: 6px 18px; color: #8a85a0; font-size: 8px; line-height: 1.6; text-align: center; }
+    .settings-version { margin-top: auto; padding: 0 0 14px; color: #a09bae; font-family: var(--font-num); font-size: 8px; text-align: center; }
+
+    /* 09 个人中心 */
+    .profile-screen { background: #f7f0df; }
+    .profile-hero { position: relative; padding: 12px 18px 18px; color: white; background: linear-gradient(155deg, #3b3f75 5%, #65719d 68%, #8c9a9b); }
+    .profile-hero::after { position: absolute; right: 16px; bottom: -1px; content: "✦"; color: #fff0af; font-size: 19px; }
+    .profile-top { display: flex; align-items: center; justify-content: space-between; }
+    .profile-top strong { font-family: var(--font-display); font-size: 16px; font-weight: 400; }
+    .profile-top span { font-size: 15px; }
+    .profile-person { display: flex; align-items: center; gap: 11px; margin-top: 20px; }
+    .profile-avatar { width: 61px; height: 61px; display: grid; flex: none; place-items: center; border: 3px solid var(--ink); border-radius: 50%; background: var(--paper); box-shadow: 0 3px 0 var(--ink); font-size: 36px; }
+    .profile-name { flex: 1; }
+    .profile-name h3 { margin: 0; font-size: 15px; font-weight: 900; }
+    .profile-name p { margin: 3px 0 0; color: #d8d8ed; font-size: 8px; }
+    .profile-level { padding: 5px 7px; border: 1.5px solid var(--ink); border-radius: 999px; color: var(--ink); background: var(--sheriff); font-family: var(--font-num); font-size: 8px; font-weight: 900; }
+    .profile-stats { display: grid; grid-template-columns: repeat(3, 1fr); margin: -1px 14px 13px; padding: 12px 7px; border: var(--line); border-radius: 0 0 15px 15px; background: var(--paper); box-shadow: var(--pop-sm); text-align: center; }
+    .profile-stats strong { display: block; font-family: var(--font-num); font-size: 19px; line-height: 1; }
+    .profile-stats span { display: block; margin-top: 4px; color: var(--ink-soft); font-size: 7px; }
+    .profile-section { margin: 0 14px 12px; }
+    .profile-section-head { display: flex; align-items: center; justify-content: space-between; margin: 0 2px 7px; }
+    .profile-section-head h4 { margin: 0; font-family: var(--font-display); font-size: 14px; font-weight: 400; }
+    .profile-section-head a { color: var(--ink-soft); font-size: 8px; }
+    .achievement-row { display: flex; gap: 7px; padding: 10px; border: 2px solid var(--ink); border-radius: 13px; background: var(--paper); box-shadow: var(--pop-sm); }
+    .achievement { min-width: 0; flex: 1; text-align: center; }
+    .achievement span { display: block; font-size: 22px; }
+    .achievement small { display: block; margin-top: 4px; color: #77728a; font-size: 7px; font-weight: 800; }
+    .history-card { overflow: hidden; border: 2px solid var(--ink); border-radius: 13px; background: var(--paper); box-shadow: var(--pop-sm); }
+    .history-row { display: flex; align-items: center; gap: 8px; padding: 8px 9px; }
+    .history-row + .history-row { border-top: 1px dashed #c9bd9a; }
+    .history-icon { width: 30px; height: 30px; display: grid; flex: none; place-items: center; border: 1.5px solid var(--ink); border-radius: 50%; background: var(--paper-dim); font-size: 17px; }
+    .history-copy { min-width: 0; flex: 1; }
+    .history-copy strong { display: block; font-size: 8px; }
+    .history-copy small { display: block; margin-top: 2px; color: var(--ink-soft); font-size: 8px; }
+    .history-outcome { color: var(--wolf); font-size: 8px; font-weight: 900; }
+    .profile-menu { display: flex; gap: 7px; margin: 0 14px; }
+    .profile-menu a { min-height: 38px; flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px; border: 2px solid var(--ink); border-radius: 11px; background: var(--paper); box-shadow: var(--pop-sm); font-size: 8px; font-weight: 800; }
+
+    .design-note {
+      max-width: 410px;
+      margin: 12px auto 0;
+      color: #aeadc3;
+      font-size: 10px;
+      line-height: 1.7;
+    }
+
+    .design-note strong { color: #ece8f6; }
+    .page-footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid rgba(255,255,255,.14); color: #9d9cb5; font-size: 10px; line-height: 1.8; }
+    .page-footer strong { color: var(--paper); }
+
+    @media (max-width: 1160px) {
+      .screen-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 34px 20px; }
+      .board-intro { grid-template-columns: 1fr; gap: 12px; }
+      .board-summary { max-width: 620px; }
+    }
+
+    @media (max-width: 680px) {
+      html { scroll-padding-top: 74px; }
+      .board { padding: 30px 12px 48px; }
+      .board-intro { gap: 10px; margin-bottom: 20px; }
+      .board h1 { font-size: 34px; }
+      .board-summary { font-size: 11px; }
+      .screen-index { top: 0; margin: 0 -12px 24px; padding-right: 12px; padding-left: 12px; }
+      .screen-index a { padding: 7px 10px; font-size: 10px; }
+      .screen-gallery { grid-template-columns: minmax(0, 1fr); gap: 30px; }
+      .artboard-heading { margin-right: 3px; margin-left: 3px; }
+      .device { height: 844px; max-width: 410px; border-radius: 27px; }
+      .device::before { width: 98px; height: 20px; }
+      .screen-index a:active { transform: scale(.98); }
+    }
+
+    @media (max-width: 350px) {
+      .board { padding-right: 8px; padding-left: 8px; }
+      .device { border-width: 4px; border-radius: 20px; }
+      .table-section { margin-right: 9px; margin-left: 9px; }
+      .feed-card { margin-right: 9px; margin-left: 9px; }
+      .speech-copy { font-size: 8px; }
+      .result-content { padding-right: 13px; padding-left: 13px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="board">
+    <header class="board-intro">
+      <div>
+        <p class="eyebrow">WHOISSPY / MINI PROGRAM UI</p>
+        <h1>从开场到复盘，<br />围观一整局 AI 狼人杀</h1>
+      </div>
+      <p class="board-summary">
+        一套面向微信小程序移动视口的完整 UI 设计总览。<strong>桌面端并列查看九张手机画板，手机端纵向浏览每个页面。</strong>
+        所有入口、开关与播放器均为视觉稿，不调用服务或平台能力。
+      </p>
+    </header>
+
+    <nav class="screen-index" aria-label="页面目录">
+      <a href="#launch">01 启动</a>
+      <a href="#home">02 首页</a>
+      <a href="#game-select">03 选择游戏</a>
+      <a href="#match">04 对局观战</a>
+      <a href="#result-win">05 狼人胜利</a>
+      <a href="#result-loss">06 好人胜利</a>
+      <a href="#replay">07 全局复盘</a>
+      <a href="#settings">08 设置</a>
+      <a href="#profile">09 个人中心</a>
+    </nav>
+
+    <div class="screen-gallery">
+      <section class="artboard" id="launch" aria-labelledby="launch-heading">
+        <header class="artboard-heading"><h2 id="launch-heading">启动页</h2><span>01 / 09</span></header>
+        <div class="device">
+          <div class="screen screen--night launch-screen">
+            <div class="sky-decoration" aria-hidden="true"><span class="village-line"></span></div>
+            <div class="statusbar"><span>9:41</span><span class="status-right"><span class="signal">▂▄▆</span><span>◉</span><span class="battery"></span></span></div>
+            <span class="loading-stars" aria-hidden="true">✦</span>
+            <div class="launch-content">
+              <div class="launch-mark" aria-hidden="true">🐺</div>
+              <h2 class="launch-title">whoisspy</h2>
+              <p class="launch-subtitle">AI WEREWOLF OBSERVATORY</p>
+              <div class="launch-progress" aria-label="加载进度 78%">
+                <div class="launch-progress-head"><span>正在召集 AI 玩家</span><strong>78%</strong></div>
+                <div class="loading-track"><div class="loading-fill"></div></div>
+                <p class="loading-note">把好奇心带上，牌局马上开始……</p>
+              </div>
+            </div>
+            <p class="launch-foot">加载完成后进入主菜单 · 静态画面示意</p>
+            <div class="home-indicator" aria-hidden="true"></div>
+          </div>
+        </div>
+        <p class="design-note"><strong>开场氛围：</strong>月亮、星点与村庄剪影先建立狼人杀的昼夜记忆点，进度条明确呈现小程序启动状态。</p>
+      </section>
+
+      <section class="artboard" id="home" aria-labelledby="home-heading">
+        <header class="artboard-heading"><h2 id="home-heading">主菜单</h2><span>02 / 09</span></header>
+        <div class="device">
+          <div class="screen screen--sky">
+            <div class="sky-decoration" aria-hidden="true"><span class="village-line"></span></div>
+            <div class="statusbar"><span>9:41</span><span class="status-right"><span class="signal">▂▄▆</span><span>◉</span><span class="battery"></span></span></div>
+            <div class="home-content">
+              <div class="home-brand">
+                <span class="logo" aria-hidden="true">🐺</span>
+                <h2>whoisspy</h2>
+                <p>AI 牌桌 · 等你围观</p>
+              </div>
+              <div class="home-actions">
+                <a class="primary-link home-main-action" href="#game-select">🎮　开始观赛</a>
+                <div class="home-shortcuts">
+                  <a class="shortcut" href="#game-select"><span class="shortcut-icon">🗂️</span><span><strong>选择游戏</strong><small>开启一场新观赛</small></span></a>
+                  <a class="shortcut" href="#game-select"><span class="shortcut-icon">🃏</span><span><strong>模式 / 对局</strong><small>标准 9 人牌桌</small></span></a>
+                  <a class="shortcut" href="#settings"><span class="shortcut-icon">⚙️</span><span><strong>设置</strong><small>声音与服务信息</small></span></a>
+                  <a class="shortcut" href="#profile"><span class="shortcut-icon">🧑‍🚀</span><span><strong>个人中心</strong><small>观赛足迹与战绩</small></span></a>
+                </div>
+              </div>
+              <a class="recent-match sticker" href="#replay">
+                <div class="recent-head"><strong>接着上次看</strong><span>全部复盘　›</span></div>
+                <div class="recent-row">
+                  <span class="recent-avatar">🦉</span>
+                  <span class="recent-info"><b>#003 · 狼人杀标准 9 人局</b><small>第 2 天 · 放逐投票 · 5 人存活</small></span>
+                  <span class="recent-result">继续 ›</span>
+                </div>
+              </a>
+              <span class="home-spacer"></span>
+              <p class="village-quote">“天黑了，先听听大家怎么说。”</p>
+            </div>
+            <div class="home-indicator" aria-hidden="true"></div>
+          </div>
+        </div>
+        <p class="design-note"><strong>四个核心入口：</strong>开始观赛、选择游戏/对局、设置和个人中心；最近复盘放在首屏，缩短回访路径。</p>
+      </section>
+
+      <section class="artboard" id="game-select" aria-labelledby="game-select-heading">
+        <header class="artboard-heading"><h2 id="game-select-heading">游戏与模式选择</h2><span>03 / 09</span></header>
+        <div class="device">
+          <div class="screen select-screen">
+            <div class="statusbar"><span>9:41</span><span class="status-right"><span class="signal">▂▄▆</span><span>◉</span><span class="battery"></span></span></div>
+            <header class="phone-header"><a class="back" href="#home" aria-label="返回首页">‹</a><h3 class="phone-title">选择游戏</h3><span class="pill">已开放 01</span></header>
+            <div class="select-intro"><h3>挑一张牌桌</h3><p>选择想围观的游戏。锁定项为未来扩展预留。</p></div>
+            <div class="mode-chip-row" aria-label="游戏分类">
+              <span class="mode-chip active">全部游戏</span><span class="mode-chip">阵营推理</span><span class="mode-chip">更多玩法</span>
+            </div>
+            <div class="game-grid-wrap">
+              <div class="game-grid" aria-label="可纵向滑动的游戏网格">
+                <article class="game-tile available">
+                  <span class="game-emoji" aria-hidden="true">🐺</span><h4>狼人杀</h4><p>标准 9 人局<br />AI 实时对局观战</p><a class="tile-cta" href="#match">进入观赛</a>
+                </article>
+                <article class="game-tile locked" aria-label="谁是卧底，尚未开放">
+                  <span class="lock-mark" aria-hidden="true">🔒</span><span class="game-emoji" aria-hidden="true">🕵️</span><h4>谁是卧底</h4><p>身份猜词 · 轻松推理</p><span class="tile-cta">开发中</span>
+                </article>
+                <article class="game-tile locked" aria-label="阿瓦隆，尚未开放">
+                  <span class="lock-mark" aria-hidden="true">🔒</span><span class="game-emoji" aria-hidden="true">🛡️</span><h4>阿瓦隆</h4><p>阵营博弈 · 秘密任务</p><span class="tile-cta">开发中</span>
+                </article>
+                <article class="game-tile locked" aria-label="狼人杀极简模式，尚未开放">
+                  <span class="lock-mark" aria-hidden="true">🔒</span><span class="game-emoji" aria-hidden="true">🌕</span><h4>狼人杀 · 极简局</h4><p>快速开局 · 精简阵容</p><span class="tile-cta">开发中</span>
+                </article>
+                <article class="game-tile locked" aria-label="更多游戏，尚未开放">
+                  <span class="lock-mark" aria-hidden="true">🔒</span><span class="game-emoji" aria-hidden="true">🎭</span><h4>更多身份游戏</h4><p>新牌桌正在布置中</p><span class="tile-cta">敬请期待</span>
+                </article>
+                <article class="game-tile locked" aria-label="阵营推理，尚未开放">
+                  <span class="lock-mark" aria-hidden="true">🔒</span><span class="game-emoji" aria-hidden="true">🧩</span><h4>阵营推理</h4><p>更多隐藏身份玩法</p><span class="tile-cta">开发中</span>
+                </article>
+                <article class="game-tile locked" aria-label="剧本推理，尚未开放">
+                  <span class="lock-mark" aria-hidden="true">🔒</span><span class="game-emoji" aria-hidden="true">📜</span><h4>剧本推理</h4><p>新的故事即将上桌</p><span class="tile-cta">敬请期待</span>
+                </article>
+              </div>
+            </div>
+            <div class="scroll-cue">上滑发现更多游戏</div>
+            <div class="home-indicator" aria-hidden="true"></div>
+          </div>
+        </div>
+        <p class="design-note"><strong>可用状态清晰：</strong>狼人杀是唯一可进入的已实现模式；锁定卡片保留扩展空间，不暗示其他游戏已接入。</p>
+      </section>
+
+      <section class="artboard" id="match" aria-labelledby="match-heading">
+        <header class="artboard-heading"><h2 id="match-heading">AI 对局观战</h2><span>04 / 09</span></header>
+        <div class="device">
+          <div class="screen match-screen">
+            <div class="sky-decoration" aria-hidden="true"><span class="village-line"></span></div>
+            <div class="statusbar"><span>9:41</span><span class="status-right"><span class="signal">▂▄▆</span><span>◉</span><span class="battery"></span></span></div>
+            <header class="phone-header"><a class="back" href="#game-select" aria-label="返回游戏选择">‹</a><span class="wordmark"><span class="wordmark-icon">🐺</span>whoisspy</span><span class="grow"></span><span class="pill">#003 · 9 人局</span></header>
+            <div class="match-topline"><span>AI 狼人杀 · 标准局</span><span class="view-switch">👁 上帝视角　⌄</span></div>
+            <div class="phase-plaque">
+              <span class="phase-symbol" aria-hidden="true">☀️</span>
+              <span class="phase-copy"><strong>第 2 天 · 放逐投票</strong><small>所有存活玩家正在投票</small></span>
+              <span class="day-counter">DAY 02</span>
+            </div>
+            <section class="table-section" aria-label="九人牌桌状态">
+              <div class="table-top"><strong>牌桌状态</strong><span>存活 5 / 9　·　警长在场</span></div>
+              <div class="seat-ring">
+                <div class="table-center">AI 村庄<small>正在进行放逐投票</small></div>
+                <div class="seat-token s1 dead"><i>🦊</i><b>01</b></div>
+                <div class="seat-token s2 sheriff"><i>🦉</i><b>02</b><span class="crown">🏅</span></div>
+                <div class="seat-token s3"><i>🐻</i><b>03</b></div>
+                <div class="seat-token s4 dead"><i>🐱</i><b>04</b></div>
+                <div class="seat-token s5 speaking"><i>🦁</i><b>05</b><span class="speaker-dot"></span></div>
+                <div class="seat-token s6"><i>🐰</i><b>06</b></div>
+                <div class="seat-token s7 dead"><i>🐢</i><b>07</b></div>
+                <div class="seat-token s8"><i>🐮</i><b>08</b></div>
+                <div class="seat-token s9"><i>🐙</i><b>09</b></div>
+              </div>
+              <div class="table-legend"><span>● 存活</span><span>✕ 出局</span><span>🏅 警长</span><span><b>蓝点</b> 正在发言</span></div>
+            </section>
+            <section class="feed-card" aria-label="发言与投票记录">
+              <div class="feed-head"><strong>牌桌现场</strong><span>本段 · 08 条</span></div>
+              <div class="feed-list">
+                <p class="system-line">🗳️ 请各位玩家投票放逐一名玩家</p>
+                <div class="speech-row">
+                  <span class="speech-avatar">🐻</span><div class="speech-bubble"><span class="speech-name">03 号 · 老好人</span><p class="speech-copy">我还是觉得 1 号发言太像提前准备好的了。</p></div>
+                </div>
+                <div class="speech-row right">
+                  <span class="speech-avatar">🦁</span><div class="speech-bubble"><span class="speech-name">05 号 · 戏精上校 <b class="sheriff-tag">警长</b></span><p class="speech-copy">别急着跟票，听完 8 号再下判断。</p></div>
+                </div>
+                <div class="speech-row">
+                  <span class="speech-avatar">🐮</span><div class="speech-bubble"><span class="speech-name">08 号 · 大嗓门</span><p class="speech-copy">警长说得有道理，我这轮会投 1 号。</p></div>
+                </div>
+                <div class="vote-mini" aria-label="投票摘要">
+                  <div class="vote-mini-head"><span>🗳️ 放逐投票</span><span>01 号出局</span></div>
+                  <div class="vote-mini-row"><span>🦊 01 林间狐</span><span class="vote-mini-track"><span class="vote-mini-fill" style="display:block;width:100%"></span></span><b class="vote-mini-num">4</b></div>
+                  <div class="vote-mini-row"><span>🐢 07 数学家</span><span class="vote-mini-track"><span class="vote-mini-fill" style="display:block;width:75%;background:var(--good)"></span></span><b class="vote-mini-num">3</b></div>
+                </div>
+              </div>
+            </section>
+            <footer class="director" aria-label="对局段落控制示意">
+              <div class="director-progress"><span>复盘段落</span><b>04 / 07</b></div>
+              <div class="progress-track"><div class="progress-fill"></div></div>
+              <div class="chapter-strip"><span class="chapter-chip">第 1 夜</span><span class="chapter-chip">警长竞选</span><span class="chapter-chip current">放逐投票</span><span class="chapter-chip">第 2 夜</span></div>
+              <div class="director-buttons"><span class="round-control">‹</span><span class="play-control">▶　自动播放</span><span class="round-control">›</span></div>
+            </footer>
+            <div class="home-indicator" aria-hidden="true"></div>
+          </div>
+        </div>
+        <p class="design-note"><strong>观战优先：</strong>阶段与牌桌状态在上，发言和结构化票型在中，段落控制固定于底部；公开视角不呈现角色徽章或阵营条。</p>
+      </section>
+
+      <section class="artboard" id="result-win" aria-labelledby="win-heading">
+        <header class="artboard-heading"><h2 id="win-heading">结算 · 狼人阵营胜利</h2><span>05 / 09</span></header>
+        <div class="device">
+          <div class="screen screen--night result-screen">
+            <div class="sky-decoration" aria-hidden="true"><span class="village-line"></span></div>
+            <div class="statusbar"><span>9:41</span><span class="status-right"><span class="signal">▂▄▆</span><span>◉</span><span class="battery"></span></span></div>
+            <div class="result-content">
+              <div class="result-top"><span>对局 #003 · 标准 9 人局</span><span>⋯</span></div>
+              <div class="result-hero">
+                <div class="result-icon" aria-hidden="true">🐺</div>
+                <h3>狼人阵营获胜</h3>
+                <p class="result-subtitle">夜色落幕，狼人成功隐藏到最后</p>
+                <span class="result-ribbon">🏆　最终胜方 · 狼人</span>
+              </div>
+              <div class="result-stats">
+                <div class="result-stat"><strong>4</strong><span>对局天数</span></div>
+                <div class="result-stat"><strong>9</strong><span>AI 玩家</span></div>
+                <div class="result-stat"><strong>3.8K</strong><span>对话 tokens</span></div>
+              </div>
+              <p class="result-reason">胜负原因<br /><b>狼人存活人数达到胜利条件</b></p>
+              <div class="elimination-row" aria-label="出局顺序示意"><span>02</span><span>07</span><span>01</span><span>06</span></div>
+              <div class="result-actions">
+                <a class="primary-link" href="#replay">📜　查看全局复盘</a>
+                <div class="result-action-row"><a class="secondary-link" href="#match">↺　重新观看</a><a class="secondary-link" href="#home">⌂　返回首页</a></div>
+                <a class="share-link" href="#result-win">↗　分享这场对局</a>
+                <p class="share-caption">分享按钮为静态示意，移植小程序时接入平台原生分享能力</p>
+              </div>
+            </div>
+            <div class="home-indicator" aria-hidden="true"></div>
+          </div>
+        </div>
+        <p class="design-note"><strong>胜利状态：</strong>阵营结果与胜负原因优先，统计摘要与出局顺序作为回顾线索；分享入口保留平台接入位置。</p>
+      </section>
+
+      <section class="artboard" id="result-loss" aria-labelledby="loss-heading">
+        <header class="artboard-heading"><h2 id="loss-heading">结算 · 好人阵营胜利</h2><span>06 / 09</span></header>
+        <div class="device">
+          <div class="screen screen--sky result-screen result-loss">
+            <div class="sky-decoration" aria-hidden="true"><span class="village-line"></span></div>
+            <div class="statusbar"><span>9:41</span><span class="status-right"><span class="signal">▂▄▆</span><span>◉</span><span class="battery"></span></span></div>
+            <div class="result-content">
+              <div class="result-top"><span>对局 #004 · 标准 9 人局</span><span>⋯</span></div>
+              <div class="result-hero">
+                <div class="result-icon" aria-hidden="true">🕊️</div>
+                <h3>好人阵营获胜</h3>
+                <p class="result-subtitle">真相浮出水面，村庄迎来黎明</p>
+                <span class="result-ribbon">🏅　最终胜方 · 好人</span>
+              </div>
+              <div class="result-stats">
+                <div class="result-stat"><strong>3</strong><span>对局天数</span></div>
+                <div class="result-stat"><strong>9</strong><span>AI 玩家</span></div>
+                <div class="result-stat"><strong>6</strong><span>复盘章节</span></div>
+              </div>
+              <p class="result-reason">胜负原因<br /><b>所有狼人均已出局</b></p>
+              <div class="elimination-row" aria-label="出局顺序示意"><span>04</span><span>08</span><span>01</span><span>09</span></div>
+              <div class="result-actions">
+                <a class="primary-link" href="#replay">📜　查看全局复盘</a>
+                <div class="result-action-row"><a class="secondary-link" href="#match">↺　重新观看</a><a class="secondary-link" href="#home">⌂　返回首页</a></div>
+                <a class="share-link" href="#result-loss">↗　分享这场对局</a>
+                <p class="share-caption">分享按钮为静态示意，移植小程序时接入平台原生分享能力</p>
+              </div>
+            </div>
+            <div class="home-indicator" aria-hidden="true"></div>
+          </div>
+        </div>
+        <p class="design-note"><strong>失败/另一阵营结算：</strong>用日光和鸽子表达好人阵营获胜，信息结构与狼人胜利态保持一致，方便成对实现。</p>
+      </section>
+
+      <section class="artboard" id="replay" aria-labelledby="replay-heading">
+        <header class="artboard-heading"><h2 id="replay-heading">全局复盘</h2><span>07 / 09</span></header>
+        <div class="device">
+          <div class="screen replay-screen">
+            <div class="statusbar"><span>9:41</span><span class="status-right"><span class="signal">▂▄▆</span><span>◉</span><span class="battery"></span></span></div>
+            <header class="phone-header"><a class="back" href="#home" aria-label="返回首页">‹</a><h3 class="phone-title">对局复盘</h3><span class="pill">#003</span></header>
+            <div class="replay-meta">
+              <span class="replay-avatar">🐺</span>
+              <span class="replay-match-copy"><strong>狼人杀 · 标准 9 人局</strong><small>2026.10.08　·　共 7 个复盘章节</small></span>
+              <span class="win-chip">狼人胜</span>
+            </div>
+            <div class="replay-tabs" aria-label="展示视角">
+              <span class="replay-tab active">👁 上帝视角</span><span class="replay-tab">🙈 沉浸视角</span>
+            </div>
+            <div class="replay-progress">
+              <div class="replay-progress-top"><span>整局复盘进度</span><b>04 / 07</b></div>
+              <div class="replay-rail"></div>
+            </div>
+            <div class="replay-chapters" aria-label="七个复盘章节，可横向浏览">
+              <span>第 1 夜</span><span>警长竞选</span><span class="active">放逐投票</span><span>第 2 夜</span><span>第 2 天发言</span><span>终局投票</span><span>胜负揭晓</span>
+            </div>
+            <section class="replay-feed" aria-label="当前章节的发言与事件">
+              <div class="replay-feed-title"><span>第 2 天 · 放逐投票</span><span>当前章节</span></div>
+              <p class="system-line">系统　请各位玩家投票放逐一名玩家</p>
+              <div class="replay-entry">
+                <span class="speech-avatar">🐻</span><div class="speech-bubble"><span class="speech-name">03 号 · 老好人</span><p class="speech-copy">我还是觉得 1 号发言太像提前准备好的了。</p></div>
+              </div>
+              <div class="replay-entry right">
+                <span class="speech-avatar">🦁</span><div class="speech-bubble"><span class="speech-name">05 号 · 戏精上校</span><p class="speech-copy">别急着跟票，听完 8 号再下判断。</p></div>
+              </div>
+              <div class="replay-vote">
+                <b>🗳️ 放逐票型 · 01 号出局</b>
+                <div class="replay-vote-line"><span>01 林间狐</span><strong>4 票</strong></div>
+                <div class="replay-vote-line"><span>07 数学家</span><strong>3 票</strong></div>
+                <div class="replay-vote-line"><span>09 老阴币</span><strong>2 票</strong></div>
+              </div>
+              <div class="replay-entry">
+                <span class="speech-avatar">🦊</span><div class="speech-bubble"><span class="speech-name">01 号 · 林间狐 · 遗言</span><p class="speech-copy">最后提醒大家，警徽流别丢。</p></div>
+              </div>
+            </section>
+            <footer class="replay-footer">
+              <div class="director-progress"><span>前一章节 ‹</span><b>04 / 07</b><span>› 后一章节</span></div>
+              <div class="progress-track"><div class="progress-fill"></div></div>
+              <div class="replay-end-state"><span>🏁 终局揭晓</span><span>狼人阵营获胜　›</span></div>
+            </footer>
+            <div class="home-indicator" aria-hidden="true"></div>
+          </div>
+        </div>
+        <p class="design-note"><strong>回看全局：</strong>章节条、进度、当前阶段、发言与投票集中在同一屏；视角是独立导出文档入口的静态示意。</p>
+      </section>
+
+      <section class="artboard" id="settings" aria-labelledby="settings-heading">
+        <header class="artboard-heading"><h2 id="settings-heading">设置与平台信息</h2><span>08 / 09</span></header>
+        <div class="device">
+          <div class="screen settings-screen">
+            <div class="statusbar"><span>9:41</span><span class="status-right"><span class="signal">▂▄▆</span><span>◉</span><span class="battery"></span></span></div>
+            <header class="phone-header"><a class="back" href="#home" aria-label="返回首页">‹</a><h3 class="phone-title">设置</h3><span class="grow"></span><span class="wordmark-icon" aria-hidden="true">⚙️</span></header>
+            <div class="settings-banner"><strong>让观赛更合你心意</strong><span>音效偏好与平台服务说明</span></div>
+            <section class="settings-group" aria-label="声音设置">
+              <h4 class="settings-group-title">声音</h4>
+              <div class="setting-row"><span class="setting-icon">🔔</span><span class="setting-copy"><strong>界面音效</strong><small>按钮与阶段切换提示</small></span><span class="switch" aria-label="界面音效已开启"></span></div>
+              <div class="setting-row"><span class="setting-icon">🎵</span><span class="setting-copy"><strong>背景音乐</strong><small>观赛时播放轻柔氛围音乐</small></span><span class="switch" aria-label="背景音乐已开启"></span></div>
+              <div class="volume-setting"><div class="volume-head"><span>🔊　音量</span><span>70%</span></div><div class="volume-track" aria-label="音量 70%"></div></div>
+            </section>
+            <section class="settings-group" aria-label="协议与隐私">
+              <h4 class="settings-group-title">关于与隐私</h4>
+              <a class="setting-row" href="#settings"><span class="setting-icon">🛡️</span><span class="setting-copy"><strong>隐私政策</strong><small>了解信息收集与使用方式</small></span><span class="setting-arrow">›</span></a>
+              <a class="setting-row" href="#settings"><span class="setting-icon">📄</span><span class="setting-copy"><strong>用户协议</strong><small>使用服务前请阅读</small></span><span class="setting-arrow">›</span></a>
+              <a class="setting-row" href="#settings"><span class="setting-icon">ℹ️</span><span class="setting-copy"><strong>关于 whoisspy</strong><small>产品版本与反馈渠道</small></span><span class="setting-arrow">›</span></a>
+            </section>
+            <p class="compliance-note">隐私政策与用户协议入口为 UI 示意。正式上线前应替换为经审核的有效文本与小程序平台备案信息。</p>
+            <span class="settings-version">whoisspy · UI CONCEPT 1.0.0</span>
+            <div class="home-indicator" aria-hidden="true"></div>
+          </div>
+        </div>
+        <p class="design-note"><strong>合规留位：</strong>协议入口清楚可见，并提示正式发布前替换审核文本；控件不收集权限、不保存用户设置。</p>
+      </section>
+
+      <section class="artboard" id="profile" aria-labelledby="profile-heading">
+        <header class="artboard-heading"><h2 id="profile-heading">个人中心</h2><span>09 / 09</span></header>
+        <div class="device">
+          <div class="screen profile-screen">
+            <div class="statusbar"><span>9:41</span><span class="status-right"><span class="signal">▂▄▆</span><span>◉</span><span class="battery"></span></span></div>
+            <div class="profile-hero">
+              <div class="profile-top"><strong>个人中心</strong><a href="#settings" aria-label="设置">⚙️</a></div>
+              <div class="profile-person">
+                <span class="profile-avatar">🦉</span>
+                <span class="profile-name"><h3>夜行观众</h3><p>加入牌桌旁的第 12 天</p></span>
+                <span class="profile-level">Lv. 03</span>
+              </div>
+            </div>
+            <div class="profile-stats" aria-label="观赛数据">
+              <div><strong>18</strong><span>观赛对局</span></div>
+              <div><strong>11</strong><span>狼人胜场</span></div>
+              <div><strong>07</strong><span>好人胜场</span></div>
+            </div>
+            <section class="profile-section">
+              <div class="profile-section-head"><h4>观赛徽章</h4><a href="#profile">全部 ›</a></div>
+              <div class="achievement-row">
+                <div class="achievement"><span>🌙</span><small>深夜侦探</small></div>
+                <div class="achievement"><span>🗳️</span><small>票型收藏家</small></div>
+                <div class="achievement"><span>🧠</span><small>逻辑旁听员</small></div>
+                <div class="achievement"><span>🏅</span><small>老牌观众</small></div>
+              </div>
+            </section>
+            <section class="profile-section">
+              <div class="profile-section-head"><h4>最近对局</h4><a href="#replay">全部复盘 ›</a></div>
+              <div class="history-card">
+                <div class="history-row"><span class="history-icon">🐺</span><span class="history-copy"><strong>#003 · 狼人杀标准 9 人局</strong><small>今天 20:14 · 7 个章节</small></span><span class="history-outcome">狼人胜</span></div>
+                <div class="history-row"><span class="history-icon">🌕</span><span class="history-copy"><strong>#002 · 狼人杀标准 9 人局</strong><small>昨天 22:06 · 6 个章节</small></span><span class="history-outcome" style="color:#4f8d61">好人胜</span></div>
+              </div>
+            </section>
+            <nav class="profile-menu" aria-label="个人中心快捷入口">
+              <a href="#replay">📚　我的复盘</a><a href="#settings">⚙️　设置与协议</a>
+            </nav>
+            <span class="grow"></span>
+            <div class="home-indicator" aria-hidden="true"></div>
+          </div>
+        </div>
+        <p class="design-note"><strong>轻量个人页：</strong>以观赛统计、徽章和最近对局为主，不假设已有登录、云同步或账号体系。</p>
+      </section>
+    </div>
+
+    <footer class="page-footer">
+      <strong>设计交接说明：</strong>本稿是静态 HTML 视觉规格，不包含业务逻辑。游戏数据、胜负原因、投票结果和视角内容应由现有展示文档提供；公开视角不得在前端补隐藏身份。平台分享、音频、账号与协议跳转需在后续小程序实现阶段接入并完成审核。
+    </footer>
+  </main>
+</body>
+</html>

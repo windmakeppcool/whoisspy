@@ -1,7 +1,8 @@
 # whoisspy 后端
 
 单进程 **headless 对局引擎**（D29）：跑一局标准 9 人狼人杀（mock 或真实 LLM）→
-事件全量落 SQLite → 导出对话 JSON（双视角 + 对局索引）。无 HTTP 服务；
+事件全量落 SQLite → 导出对话 JSON（双视角 + 对局索引）。引擎本体无常驻服务；
+产品形态已转纯 PC 游戏（D34，Electron + sidecar，见 [../docs/pc-game.md](../docs/pc-game.md)），
 前端展示框架已落地（静态导出直读复盘，见 [../docs/frontend.md](../docs/frontend.md)）。
 
 设计文档在 [`../docs/backend/`](../docs/backend/00-overview.md)（00–14 分册，细节以文档为准），本文只讲**怎么跑起来**。

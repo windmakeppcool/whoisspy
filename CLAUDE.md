@@ -1,11 +1,13 @@
 # CLAUDE.md
 
-多 AI 合作对抗观赏台：LLM 驱动的 AI 玩家打隐藏身份对抗游戏（狼人杀首发）。
+**纯 PC 游戏**（D34）：人可入座与 LLM 玩家同桌对抗、也可纯观战（狼人杀首发，后续扩展阿瓦隆等），
+有上 Steam 计划（D37 裁剪范围）。
 后端为单进程 **headless 对局引擎**（D29）：跑一局标准 9 人狼人杀 + 事件落库 + 对话导出；
 前端展示框架已落地（静态导出直读复盘，见 [docs/frontend.md](docs/frontend.md)）。
 
 设计文档在 `docs/`（长期维护，按功能域拆分），细节以文档为准：
 
+- PC 游戏架构（Electron + Python sidecar，D34–D37）：[docs/pc-game.md](docs/pc-game.md)
 - 后端规格（唯一权威）：[docs/backend/00-overview.md](docs/backend/00-overview.md)（00–14 分册：
   结构/流程/事件/状态/规则/prompt/agent/llm/配置/存储/导出/CLI/测试/落地记录）
 - 游戏规则书：[docs/games/werewolf.md](docs/games/werewolf.md)（规则口径唯一权威）

@@ -2,7 +2,7 @@
 
 > **状态**：**已落地**（静态导出直读复盘，2026-09-29；后端导出 v2 见
 > [backend/11-export.md](backend/11-export.md) 第五节）。路线：**静态导出直读**——CLI 跑局
-> 产出导出 JSON，前端零服务直接复盘；直播/建局留给最小 API 阶段（[roadmap.md](roadmap.md)）。
+> 产出导出 JSON，前端零服务直接复盘；直播/建局并入 PC 游戏方案（[pc-game.md](pc-game.md)，D34/D35）。
 > 视觉规范唯一权威在 [frontend-design.md](frontend-design.md)，本册只管结构与数据。
 
 ## 一、定位与三条铁律
@@ -45,7 +45,7 @@ interface MatchSource {
 
 - `LocalFileSource` 单文件即单视角：视角按钮禁用并提示「请打开对应视角的文件」（文档自带 `view` 字段）。
 - 列表页同时提供「本地打开」入口（无 `index.json` / 空目录时的主路径）。
-- 阶段 B 预留 `ApiSource`（REST 回放同 schema + SSE 直播增量帧），接口不变、视图无感（第八节）。
+- PC 化方案预留 `ApiSource`（WS 直播帧回放同 schema，D35），接口不变、视图无感（第八节）。
 
 **运行时守卫**：`model/display.ts` 对文档做结构校验；检测到 v1 文档（无 `is_night / stage / votes`）
 → 明确报「请用新版 CLI 重新导出」，**绝不静默降级**、绝不前端补算。
@@ -54,7 +54,7 @@ interface MatchSource {
 
 | 路由 | 页面 | 数据 | 变化 |
 |---|---|---|---|
-| `/` | MatchListView | `index.json` | 改造：卡片列（编号/胜负/种子/人数/导出时间/可用视角）+「本地打开」入口；「创建对局」按钮移除（阶段 B 恢复） |
+| `/` | MatchListView | `index.json` | 改造：卡片列（编号/胜负/种子/人数/导出时间/可用视角）+「本地打开」入口；「创建对局」按钮移除（PC 方案恢复，见 [pc-game.md](pc-game.md)） |
 | `/matches/:id` | MatchView（复盘舞台） | `match-<id>-<view>.json` | 改造：数据层换 `MatchSource`；`?view=god\|public` 深链可分享 |
 | `/matches/local` | MatchView（本地文件态） | `LocalFileSource` | 新增 |
 | `/create` | — | — | 暂下线（无 API 无建局） |
@@ -113,10 +113,10 @@ Pinia：
 
 | 删除 | 理由 |
 |---|---|
-| `api/client.ts` · `api/sse.ts` | 旧 FastAPI 契约（服务端已删）；阶段 B 按新契约重写 |
+| `api/client.ts` · `api/sse.ts` | 旧 FastAPI 契约（服务端已删）；PC 方案按新契约重写（`ApiSource`） |
 | `model/project.ts` + `project.test.ts` | 前端自带事件解释，P5 违例（这正是 D29 根治的漂移病灶） |
 | `stores/match.ts` · `stores/catalog.ts` | 旧 API 时代 store；由 replay / matchList 取代 |
-| `views/CreateMatchView.vue` | 无 API 无建局；阶段 B 恢复 |
+| `views/CreateMatchView.vue` | 无 API 无建局；PC 方案恢复 |
 
 `mock/match.ts` 保留为组件开发与视觉走查 fixture（不进生产数据路径）。
 
@@ -127,19 +127,22 @@ Pinia：
 - 组件冒烟：MatchView 以真实导出文件（`backend/exports/match-*-god.json`）为 fixture；
 - 契约由后端锁死：`test_export` 覆盖 v2 字段（[backend/13-testing.md](backend/13-testing.md)）。
 
-## 八、演进：阶段 B 最小 API（只画边界，不展开）
+## 八、演进：直播与建局（已并入 PC 方案，D34/D35）
 
-[roadmap.md](roadmap.md) 既定方向。**同一契约的增量形态**，前端只换 `ApiSource` 即接入：
+原「阶段 B 最小 API」方向已并入 [pc-game.md](pc-game.md)（Electron + Python sidecar，
+本机回环 WebSocket 替代 REST + SSE）——**契约不变**，前端只换 `ApiSource` 即接入：
 
-- REST：`GET /api/matches`（= `index.json`）、`GET /api/matches/:id?view=`（= 展示文档）；
-- SSE 直播帧 = 展示文档的增量分解：`segment_open / line / segment_close(stage, votes) / usage / finished`
+- 建局/索引/对局读取：sidecar 消息 `create / list / export`（对应原 REST 三端点）；
+- 直播帧 = 展示文档的增量分解：`segment_open / line / segment_close(stage, votes) / usage / finished`
   ——复盘（整文档）与直播（帧流 append 进同一文档模型）同构，「观赛/复盘共用组件」由此达成；
-- 建局 `POST /api/matches`；
-- 启动时另立 API 规格文档，不复活旧 `api/app.py`。
+- 额外帧 `input_required`（人类座位轮次）与 `pace`（暂停/倍速/逐帧）是 PC 化新增，见
+  [pc-game.md](pc-game.md) 第三、四节；
+- 协议规格实施时落 [backend/12-cli.md](backend/12-cli.md)（`--serve` 模式），
+  不复活旧 `api/app.py`。
 
 ## 九、设计决策记录
 
-（决策记录文档 `decisions.md` 已删除；前端域决策记于本节，编号 F 系）
+（决策记录统记于 [decisions.md](decisions.md)（已恢复，append-only）；前端域决策记于本节，编号 F 系）
 
 | # | 决策 | 取舍 |
 |---|---|---|

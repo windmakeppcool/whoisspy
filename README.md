@@ -1,13 +1,16 @@
 # whoisspy 设计文档
 
-多 AI 合作对抗观赏台：多个 LLM 驱动的 AI 玩家进行「阵营制 + 隐藏身份」类对抗游戏（狼人杀首发）。
+**纯 PC 游戏**（D34）：人可入座与 LLM 玩家同桌打「阵营制 + 隐藏身份」对抗游戏（狼人杀首发），
+也可纯观战；有上 Steam 计划（范围裁剪见 D37）。桌面壳 = Electron 客户端 + Python 引擎
+sidecar 双进程（D35，规格见 [pc-game.md](docs/pc-game.md)）。
 后端为**单进程 headless 对局引擎**（D29）：跑一局标准 9 人狼人杀（mock 或真实 LLM），
-全程事件落 SQLite，跑完导出对话 JSON；人作为赛后读者翻看记录。
+全程事件落 SQLite，跑完导出对话 JSON。
 
 ## 文档地图（按功能域拆分）
 
 | 文档 | 内容 | 什么时候动它 |
 |---|---|---|
+| [pc-game.md](docs/pc-game.md) | PC 游戏架构：双进程拓扑、通信契约、人类座位、实施分期（D34–D37） | 改桌面壳/通信/入座方案 |
 | [backend/00-overview.md](backend/00-overview.md) | 后端总览：目标/非目标、设计原则、保留与丢弃清单 | 引入新设计原则 |
 | [backend/01-structure.md](backend/01-structure.md) | 模块划分、依赖方向、技术选型、MatchRun 原语 | 加/改模块 |
 | [backend/02-flow.md](backend/02-flow.md) | 对局流程规格（夜/昼/警长/死亡链/终止） | 改流程 |
@@ -42,7 +45,7 @@ python -m app.main --real [--model M]    # 真实 LLM 跑一局（需 providers.
 
 ## 扩展约定
 
-- **新增游戏/重建 API**：先读 [decisions.md](decisions.md) D32（不预设插件抽象），
-  在对应功能域文档展开设计后追加决策条目。
+- **新增游戏**：先读 [decisions.md](decisions.md) D32（不预设插件抽象）与 D36（每游戏一册分目录），
+  在对应功能域文档展开设计后追加决策条目；PC 客户端/通信相关先读 [pc-game.md](docs/pc-game.md)。
 - **决策变更**：decisions.md 追加新条目（编号递增，注明日期、推翻了哪条旧决策），旧条目保留不删改。
 - 全部中文撰写，代码标识符与命令保留原文。
