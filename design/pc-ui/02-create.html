@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>whoisspy · 02 创建对局</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Noto+Sans+SC:wght@400;500;700;900&family=ZCOOL+KuaiLe&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<nav class="spec-nav">
+  <a class="spec-brand" href="index.html">whoisspy · PC 游戏界面稿件</a>
+  <div class="spec-links">
+    <a href="00-login.html">00 登录</a>
+    <a href="01-list.html">01 对局列表</a>
+    <a href="02-create.html" class="on">02 创建对局</a>
+    <a href="03-watch.html">03 观战舞台</a>
+    <a href="04-seat.html">04 入座对战</a>
+    <a href="05-finish.html">05 终局与用量</a>
+    <a href="06-settings.html">06 设置</a>
+  </div>
+</nav>
+
+<section class="board">
+  <header class="board-head">
+    <span class="board-no">02</span>
+    <h2>创建对局 · 座位分配</h2>
+    <p class="board-sub">路由 <b>/create</b> · 一次 <b>create {game, board, seed?, seats}</b> 消息定局：选游戏 + 板子（代码常量 standard-9）+ 每座位 human / llm。入座 / 观战只是预设，引擎不区分模式。</p>
+  </header>
+
+  <div class="frame">
+    <div class="screen tall">
+      <div class="sky day">
+        <div class="celestial"></div>
+        <div class="stars"></div>
+        <svg class="village" viewBox="0 0 1200 190" preserveAspectRatio="none">
+          <path class="v-hills" d="M0,190 L0,120 Q150,60 300,110 T600,100 T900,115 T1200,90 L1200,190 Z" />
+          <g class="v-houses">
+            <path d="M80,190 L80,140 L105,118 L130,140 L130,190 Z" />
+            <rect x="258" y="128" width="26" height="62" /><path d="M252,130 L271,112 L290,130 Z" />
+            <rect x="880" y="126" width="14" height="64" />
+            <g class="mill" transform="translate(887,122)">
+              <path d="M0,0 L26,7 L0,14 Z" /><path d="M0,0 L-26,-7 L0,-14 Z" />
+              <path d="M0,0 L-7,-26 L-14,0 Z" /><path d="M0,0 L7,26 L14,0 Z" />
+            </g>
+            <path d="M1030,190 L1030,142 L1056,120 L1082,142 L1082,190 Z" />
+          </g>
+        </svg>
+      </div>
+
+      <header class="topbar">
+        <p class="brand"><span class="logo">🐺</span><span>whoisspy</span></p>
+        <button class="pill-btn ghost sm">‹ 返回列表</button>
+        <span class="spacer"></span>
+        <button class="pill-btn ghost sm">⚙ 设置</button>
+      </header>
+
+      <div class="sheet">
+        <section class="panel">
+          <div class="panel-head">
+            <h1>创建对局</h1>
+            <p class="panel-sub">板子是代码常量（rules.py · standard-9），无 boards.json</p>
+          </div>
+
+          <div class="create-grid">
+            <div class="side-stack">
+              <div>
+                <span class="field-label">选择游戏</span>
+                <button class="game-opt on">
+                  <span class="g-emoji">🐺</span>
+                  <span><span class="g-name">狼人杀 · 标准 9 人局</span><br /><span class="g-sub">standard-9 · 昼夜交替 · 警长竞选</span></span>
+                  <span class="spacer" style="margin-left:auto"></span><span class="check">✓</span>
+                </button>
+                <button class="game-opt locked" disabled>
+                  <span class="g-emoji">🗡️</span>
+                  <span><span class="g-name">阿瓦隆</span><br /><span class="g-sub">第二游戏成册开发中</span></span>
+                </button>
+              </div>
+
+              <div>
+                <span class="field-label">板子 · standard-9（只读）</span>
+                <ul class="board-facts">
+                  <li><span>🐺 狼人</span><b>3</b></li>
+                  <li><span>🔮 预言家</span><b>1</b></li>
+                  <li><span>🧪 女巫</span><b>1</b></li>
+                  <li><span>🏹 猎人</span><b>1</b></li>
+                  <li><span>👤 平民</span><b>3</b></li>
+                  <li><span>狼队密谋轮数</span><b>2</b></li>
+                  <li><span>昼夜上限</span><b>8 天</b></li>
+                </ul>
+              </div>
+
+              <div>
+                <span class="field-label">随机种子（可选）</span>
+                <input class="text-input" value="42" />
+              </div>
+
+              <div>
+                <span class="field-label">快速预设</span>
+                <div class="preset-row">
+                  <button class="preset" data-preset="solo">🙋 我来玩（1 人入座）</button>
+                  <button class="preset" data-preset="watch">👀 纯观战</button>
+                  <button class="preset" data-preset="duo">👫 双人入座</button>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div class="panel-head" style="margin-bottom:8px">
+                <h2>座位分配</h2>
+                <p class="panel-sub">「入座」= 你操控 ·「AI」= 指派 LLM 玩家（多人设 / 多模型混战）</p>
+                <span class="spacer"></span>
+                <p class="panel-sub" id="seatCount">已入座 1 人 · 8 个 AI</p>
+              </div>
+
+              <div class="seat-row">
+                <p class="s-no">1</p><p class="s-emoji">🦊</p>
+                <select class="pick"><option>悍跳强攻型</option><option>冷静盘逻辑型</option></select>
+                <select class="pick"><option>qwen-max</option><option>deepseek-v3</option></select>
+                <div class="seg"><button data-seat="1" data-type="human">🙋 入座</button><button class="on ai" data-seat="1" data-type="llm">🤖 AI</button></div>
+              </div>
+              <div class="seat-row">
+                <p class="s-no">2</p><p class="s-emoji">🦉</p>
+                <select class="pick"><option>冷静盘逻辑型</option><option>概率狂魔</option></select>
+                <select class="pick"><option>deepseek-v3</option><option>qwen-max</option></select>
+                <div class="seg"><button data-seat="2" data-type="human">🙋 入座</button><button class="on ai" data-seat="2" data-type="llm">🤖 AI</button></div>
+              </div>
+              <div class="seat-row">
+                <p class="s-no">3</p><p class="s-emoji">🐻</p>
+                <select class="pick"><option>真诚朴实型</option><option>照顾全场型</option></select>
+                <select class="pick"><option>glm-4</option><option>doubao-pro</option></select>
+                <div class="seg"><button class="on" data-seat="3" data-type="human">🙋 入座</button><button data-seat="3" data-type="llm">🤖 AI</button></div>
+              </div>
+              <div class="seat-row">
+                <p class="s-no">4</p><p class="s-emoji">🐱</p>
+                <select class="pick"><option>寡言观察型</option><option>阴阳怪气型</option></select>
+                <select class="pick"><option>qwen-max</option><option>glm-4</option></select>
+                <div class="seg"><button data-seat="4" data-type="human">🙋 入座</button><button class="on ai" data-seat="4" data-type="llm">🤖 AI</button></div>
+              </div>
+              <div class="seat-row">
+                <p class="s-no">5</p><p class="s-emoji">🦁</p>
+                <select class="pick"><option>表演型人格</option><option>直球选手</option></select>
+                <select class="pick"><option>doubao-pro</option><option>deepseek-v3</option></select>
+                <div class="seg"><button data-seat="5" data-type="human">🙋 入座</button><button class="on ai" data-seat="5" data-type="llm">🤖 AI</button></div>
+              </div>
+              <div class="seat-row">
+                <p class="s-no">6</p><p class="s-emoji">🐰</p>
+                <select class="pick"><option>温柔和善型</option><option>照顾全场型</option></select>
+                <select class="pick"><option>glm-4</option><option>qwen-max</option></select>
+                <div class="seg"><button data-seat="6" data-type="human">🙋 入座</button><button class="on ai" data-seat="6" data-type="llm">🤖 AI</button></div>
+              </div>
+              <div class="seat-row">
+                <p class="s-no">7</p><p class="s-emoji">🐢</p>
+                <select class="pick"><option>概率狂魔</option><option>一本正经型</option></select>
+                <select class="pick"><option>deepseek-v3</option><option>doubao-pro</option></select>
+                <div class="seg"><button data-seat="7" data-type="human">🙋 入座</button><button class="on ai" data-seat="7" data-type="llm">🤖 AI</button></div>
+              </div>
+              <div class="seat-row">
+                <p class="s-no">8</p><p class="s-emoji">🐮</p>
+                <select class="pick"><option>激情演讲型</option><option>莽撞冲锋型</option></select>
+                <select class="pick"><option>doubao-pro</option><option>glm-4</option></select>
+                <div class="seg"><button data-seat="8" data-type="human">🙋 入座</button><button class="on ai" data-seat="8" data-type="llm">🤖 AI</button></div>
+              </div>
+              <div class="seat-row">
+                <p class="s-no">9</p><p class="s-emoji">🐙</p>
+                <select class="pick"><option>阴阳怪气型</option><option>老谋深算型</option></select>
+                <select class="pick"><option>qwen-max</option><option>deepseek-v3</option></select>
+                <div class="seg"><button data-seat="9" data-type="human">🙋 入座</button><button class="on ai" data-seat="9" data-type="llm">🤖 AI</button></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel create-foot" style="border-radius:var(--radius-lg)">
+          <p class="create-summary" id="createSummary">将开一局 <b>standard-9</b> · <b>1</b> 人入座 · <b>8</b> 个 AI 玩家 · 种子 42</p>
+          <span class="spacer"></span>
+          <button class="pill-btn ghost">保存为预设</button>
+          <button class="big-btn">🎲 开始对局</button>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <ul class="notes">
+    <li>座位三态收敛为两键：<b>入座（human）/ 指派 AI（llm）</b>；「纯观战」= 全部 llm，与入座局同一代码路径。</li>
+    <li>persona / model 逐座可调（D5 多人设多模型混战），沿用 <b>backend/data/</b> 的 providers.json / personas.json。</li>
+    <li>右侧只读板子事实来自 <b>rules.py 常量</b>；seed 可选，复现 / 分叉重跑依赖它。</li>
+  </ul>
+</section>
+
+<script src="app.js"></script>
+</body>
+</html>

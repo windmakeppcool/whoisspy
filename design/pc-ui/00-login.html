@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>whoisspy · 00 游戏登录</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Noto+Sans+SC:wght@400;500;700;900&family=ZCOOL+KuaiLe&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<nav class="spec-nav">
+  <a class="spec-brand" href="index.html">whoisspy · PC 游戏界面稿件</a>
+  <div class="spec-links">
+    <a href="00-login.html" class="on">00 登录</a>
+    <a href="01-list.html">01 对局列表</a>
+    <a href="02-create.html">02 创建对局</a>
+    <a href="03-watch.html">03 观战舞台</a>
+    <a href="04-seat.html">04 入座对战</a>
+    <a href="05-finish.html">05 终局与用量</a>
+    <a href="06-settings.html">06 设置</a>
+  </div>
+</nav>
+
+<section class="board">
+  <header class="board-head">
+    <span class="board-no">00</span>
+    <h2>游戏登录 · 启动首屏</h2>
+    <p class="board-sub">Electron 客户端启动后的第一屏：本地玩家档案（昵称）+ 密钥状态 + 主路径入口。
+      <b>无账号系统、无 Steamworks</b>（D37）；「打开本地回放」是零配置路径。</p>
+  </header>
+
+  <div class="frame">
+    <div class="screen short">
+      <div class="sky day">
+        <div class="celestial"></div>
+        <div class="stars"></div>
+        <svg class="village" viewBox="0 0 1200 190" preserveAspectRatio="none">
+          <path class="v-hills" d="M0,190 L0,120 Q150,60 300,110 T600,100 T900,115 T1200,90 L1200,190 Z" />
+          <g class="v-houses">
+            <path d="M80,190 L80,140 L105,118 L130,140 L130,190 Z" />
+            <path d="M170,190 L170,150 L190,132 L210,150 L210,190 Z" />
+            <rect x="258" y="128" width="26" height="62" /><path d="M252,130 L271,112 L290,130 Z" />
+            <path d="M560,190 L560,146 L585,124 L610,146 L610,190 Z" />
+            <rect x="742" y="140" width="24" height="50" /><path d="M736,142 L754,124 L772,142 Z" />
+            <rect x="880" y="126" width="14" height="64" />
+            <g class="mill" transform="translate(887,122)">
+              <path d="M0,0 L26,7 L0,14 Z" /><path d="M0,0 L-26,-7 L0,-14 Z" />
+              <path d="M0,0 L-7,-26 L-14,0 Z" /><path d="M0,0 L7,26 L14,0 Z" />
+            </g>
+            <path d="M1030,190 L1030,142 L1056,120 L1082,142 L1082,190 Z" />
+            <path d="M1120,190 L1120,156 L1138,140 L1156,156 L1156,190 Z" />
+          </g>
+        </svg>
+      </div>
+
+      <main class="login-hero">
+        <div class="login-col">
+          <div class="brand-xl"><span class="logo">🐺</span><h1>whoisspy</h1></div>
+          <p class="tagline">坐上牌桌，和 8 个 AI 同桌互骗；<br />或者泡杯茶，看它们互相欺骗一整局。</p>
+
+          <label class="name-field">
+            <span class="field-label">你的昵称</span>
+            <input class="name-input" value="匿名村民" />
+          </label>
+
+          <p class="key-status"><span class="dot"></span>LLM 密钥 3 / 4 已配置<a class="go" href="06-settings.html">去设置</a></p>
+
+          <div class="cta-row">
+            <button class="enter-btn">🎮 进入游戏</button>
+            <button class="pill-btn">📂 打开本地回放</button>
+            <button class="pill-btn ghost">⚙ 设置</button>
+          </div>
+        </div>
+      </main>
+
+      <div class="avatar-strip" aria-label="牌桌席位">
+        <div class="strip-seat"><span class="s-face">🦊</span><span class="s-label">1 号</span></div>
+        <div class="strip-seat"><span class="s-face">🦉</span><span class="s-label">2 号</span></div>
+        <div class="strip-seat you"><span class="s-face">🙋</span><span class="s-label">3 号 · 你</span></div>
+        <div class="strip-seat"><span class="s-face">🐱</span><span class="s-label">4 号</span></div>
+        <div class="strip-seat"><span class="s-face">🦁</span><span class="s-label">5 号</span></div>
+        <div class="strip-seat"><span class="s-face">🐰</span><span class="s-label">6 号</span></div>
+        <div class="strip-seat"><span class="s-face">🐢</span><span class="s-label">7 号</span></div>
+        <div class="strip-seat"><span class="s-face">🐮</span><span class="s-label">8 号</span></div>
+        <div class="strip-seat"><span class="s-face">🐙</span><span class="s-label">9 号</span></div>
+      </div>
+
+      <p class="version-strip"><span>v0.1.0</span><span>·</span><span>离线单机</span><span>·</span><span>板子 standard-9</span></p>
+    </div>
+  </div>
+
+  <ul class="notes">
+    <li><b>本地玩家档案</b>：昵称存 <b>settings.json</b>（&lt;userData&gt;/whoisspy/，不含密钥）；无账号体系、无 Steamworks（D37），将来云存档 = 同步该目录。</li>
+    <li><b>密钥状态胶囊</b>：全部配置时绿点；有缺失时转红点并提示「未配置密钥，无法开始对局」，一键跳设置页（key 入 OS 凭据管理器，api_key_env 注入）。</li>
+    <li>「进入游戏」→ 02 创建对局；「打开本地回放」→ 01 对局列表 / 本地文件，<b>不需要 key</b>，是零配置路径（LocalFileSource）。</li>
+    <li>首屏构图：品牌为最响亮元素、左窄栏文案 + 主 CTA，右下席位条是「9 席 · 8 个 AI」的产品预告；顶栏即 Electron 窗口拖拽区。</li>
+  </ul>
+</section>
+
+<script src="app.js"></script>
+</body>
+</html>

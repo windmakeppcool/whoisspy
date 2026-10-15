@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>whoisspy · 03 观战舞台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Noto+Sans+SC:wght@400;500;700;900&family=ZCOOL+KuaiLe&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<nav class="spec-nav">
+  <a class="spec-brand" href="index.html">whoisspy · PC 游戏界面稿件</a>
+  <div class="spec-links">
+    <a href="00-login.html">00 登录</a>
+    <a href="01-list.html">01 对局列表</a>
+    <a href="02-create.html">02 创建对局</a>
+    <a href="03-watch.html" class="on">03 观战舞台</a>
+    <a href="04-seat.html">04 入座对战</a>
+    <a href="05-finish.html">05 终局与用量</a>
+    <a href="06-settings.html">06 设置</a>
+  </div>
+</nav>
+
+<section class="board">
+  <header class="board-head">
+    <span class="board-no">03</span>
+    <h2>对局舞台 · 观战模式（上帝视角）</h2>
+    <p class="board-sub">直播帧 <b>segment_open / line / segment_close / usage / finished</b> 增量进同一 DisplayDoc · 节奏控制条（暂停 / 倍速 / 逐帧）是 PC 化必备能力 · 帧投递间隔随倍速变化，引擎照常跑。</p>
+  </header>
+
+  <div class="frame">
+    <div class="screen">
+      <div class="sky night">
+        <div class="celestial"></div>
+        <div class="stars"></div>
+        <svg class="village" viewBox="0 0 1200 190" preserveAspectRatio="none">
+          <path class="v-hills" d="M0,190 L0,120 Q150,60 300,110 T600,100 T900,115 T1200,90 L1200,190 Z" />
+          <g class="v-houses">
+            <path d="M80,190 L80,140 L105,118 L130,140 L130,190 Z" />
+            <path d="M170,190 L170,150 L190,132 L210,150 L210,190 Z" />
+            <rect x="258" y="128" width="26" height="62" /><path d="M252,130 L271,112 L290,130 Z" />
+            <rect x="880" y="126" width="14" height="64" />
+            <g class="mill" transform="translate(887,122)">
+              <path d="M0,0 L26,7 L0,14 Z" /><path d="M0,0 L-26,-7 L0,-14 Z" />
+              <path d="M0,0 L-7,-26 L-14,0 Z" /><path d="M0,0 L7,26 L14,0 Z" />
+            </g>
+            <path d="M1030,190 L1030,142 L1056,120 L1082,142 L1082,190 Z" />
+          </g>
+        </svg>
+      </div>
+
+      <header class="topbar">
+        <p class="brand"><span class="logo">🐺</span><span>whoisspy</span></p>
+        <div class="mode-wrap">
+          <button class="pill-btn" id="modeBtn">🎮 狼人杀 · 标准 9 人局 <span class="caret">▾</span></button>
+          <ul class="menu" id="modeMenu" hidden>
+            <li><button class="item active">狼人杀 · 标准 9 人局 <span class="check">✓</span></button></li>
+            <li><button class="item locked" disabled>阿瓦隆 <span class="hint">开发中</span></button></li>
+          </ul>
+        </div>
+        <button class="pill-btn on sm">👁️ 上帝视角</button>
+        <span class="spacer"></span>
+        <button class="pill-btn ghost sm">⏸ 暂停</button>
+        <button class="pill-btn ghost sm">✕ 结束观战</button>
+      </header>
+
+      <main class="stage">
+        <aside class="wing"><div class="seat-col">
+          <article class="seat-card god wolf">
+            <div class="avatar"><span>🦊</span></div>
+            <div class="meta"><p class="no">1 号</p><p class="name">林间狐</p><p class="model">qwen-max · 悍跳强攻型</p></div>
+            <div class="role-chip wolf-c">狼人</div>
+          </article>
+          <article class="seat-card god good">
+            <div class="avatar"><span>🦉</span></div>
+            <div class="meta"><p class="no">2 号</p><p class="name">夜枭</p><p class="model">deepseek-v3 · 冷静盘逻辑型</p></div>
+            <div class="role-chip seer-c">预言家</div>
+          </article>
+          <article class="seat-card god good dead">
+            <div class="avatar"><span>🐻</span><span class="grave">✖</span></div>
+            <div class="meta"><p class="no">3 号</p><p class="name">老好人</p><p class="model">glm-4 · 真诚朴实型</p></div>
+            <div class="role-chip good-c">平民</div>
+          </article>
+          <article class="seat-card god wolf speaking">
+            <div class="avatar"><span>🐱</span></div>
+            <div class="meta"><p class="no">4 号</p><p class="name">沉默刀客</p><p class="model">qwen-max · 寡言观察型</p></div>
+            <div class="role-chip wolf-c">狼人</div>
+            <span class="speak-dot"></span>
+          </article>
+          <article class="seat-card god good">
+            <div class="avatar"><span>🦁</span></div>
+            <div class="meta"><p class="no">5 号</p><p class="name">戏精上校</p><p class="model">doubao-pro · 表演型人格</p></div>
+            <div class="role-chip good-c">平民</div>
+          </article>
+        </div></aside>
+
+        <div class="center">
+          <header class="banner">
+            <span class="icon">🌙</span>
+            <h1 class="title">第 2 夜 · 狼队密谋</h1>
+            <span class="day-chip"><span class="day-label">第</span><span class="day-num">2</span><span class="day-label">夜</span></span>
+          </header>
+          <div class="theater-wrap"><section class="theater" aria-label="对局对话">
+            <div class="feed">
+              <p class="narration">🌙 天黑请闭眼……狼人请睁眼。</p>
+              <div class="channel-row"><div class="channel-bubble">
+                <p class="who">🦊 1号 · 林间狐 <span class="tag wolf-tag">狼队频道</span></p>
+                <p class="text">警徽在手，明天我直接发金水给 9 号。</p>
+                <p class="mono"><span class="mono-tag">内心</span>警长身份太好用。</p>
+              </div></div>
+              <div class="channel-row"><div class="channel-bubble">
+                <p class="who">🐙 9号 · 老阴币 <span class="tag wolf-tag">狼队频道</span></p>
+                <p class="text">懂了，我哭得惨一点。</p>
+                <p class="mono"><span class="mono-tag">内心</span>影帝上线。</p>
+              </div></div>
+              <div class="channel-row"><div class="channel-bubble">
+                <p class="who">🐱 4号 · 沉默刀客 <span class="tag wolf-tag">狼队频道</span></p>
+                <p class="text">今晚刀 8 号，猎人必须死。</p>
+                <p class="mono"><span class="mono-tag">内心</span>按剧本走。</p>
+              </div></div>
+              <p class="narration">🔪 狼人们达成了一致（上帝视角可见）</p>
+            </div>
+          </section></div>
+        </div>
+
+        <aside class="wing"><div class="seat-col">
+          <article class="seat-card god good">
+            <div class="avatar"><span>🐰</span></div>
+            <div class="meta"><p class="no">6 号</p><p class="name">白月光</p><p class="model">glm-4 · 温柔和善型</p></div>
+            <div class="role-chip witch-c">女巫</div>
+          </article>
+          <article class="seat-card god good">
+            <div class="avatar"><span>🐢</span></div>
+            <div class="meta"><p class="no">7 号</p><p class="name">数学家</p><p class="model">deepseek-v3 · 概率狂魔</p></div>
+            <div class="role-chip good-c">猎人</div>
+          </article>
+          <article class="seat-card god good">
+            <div class="avatar"><span>🐮</span></div>
+            <div class="meta"><p class="no">8 号</p><p class="name">大嗓门</p><p class="model">doubao-pro · 激情演讲型</p></div>
+            <div class="role-chip good-c">平民</div>
+            <span class="badge-sheriff" title="警长">🏅</span>
+          </article>
+          <article class="seat-card god wolf">
+            <div class="avatar"><span>🐙</span></div>
+            <div class="meta"><p class="no">9 号</p><p class="name">老阴币</p><p class="model">qwen-max · 阴阳怪气型</p></div>
+            <div class="role-chip wolf-c">狼人</div>
+          </article>
+        </div></aside>
+      </main>
+
+      <footer class="director" style="max-width:1500px;width:100%;margin:0 auto">
+        <div style="flex:1;display:flex;align-items:center;gap:9px">
+          <button class="nav" aria-label="上一段">‹</button>
+          <div class="chapters">
+            <button class="chapter done">开局 · 发牌</button>
+            <button class="chapter done">第 1 夜 · 狼队密谋</button>
+            <button class="chapter done">第 1 天 · 警长竞选</button>
+            <button class="chapter done">第 1 天 · 放逐投票</button>
+            <button class="chapter now">第 2 夜 · 狼队密谋</button>
+            <button class="chapter">第 2 天 · 发言</button>
+            <button class="chapter">第 2 天 · 放逐投票</button>
+          </div>
+          <button class="nav" aria-label="下一段">›</button>
+        </div>
+        <div class="pace">
+          <span class="pace-label">节奏</span>
+          <button class="pace-play" id="pacePlay">⏸ 暂停</button>
+          <div class="speeds" id="speeds">
+            <button class="speed">0.5×</button>
+            <button class="speed on">1×</button>
+            <button class="speed">2×</button>
+            <button class="speed">4×</button>
+          </div>
+          <button class="pace-frame" id="paceFrame">⏭ 逐帧</button>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+  <ul class="notes">
+    <li><b>节奏控制条</b>：暂停 / 继续、0.5×–4× 倍速（只影响帧投递与渲染）、逐帧前进（暂停态下每按一次推进一个「观众原子」：一段 segment 或一条 line）。</li>
+    <li>章节胶囊 = 展示文档 segments（DirectorBar 段落导航），‹ › 与点击跳段；顶部进度条按（当前段+1）/ 总段数。</li>
+    <li>上帝视角：阵营边条、角色徽章、狼队频道、内心独白全亮；<b>视角切换 = 换文档</b>（快捷键 G），沉浸视角下这些内容在文档中就不存在。</li>
+  </ul>
+</section>
+
+<script src="app.js"></script>
+</body>
+</html>

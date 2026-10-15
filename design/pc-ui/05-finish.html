@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>whoisspy · 05 终局与用量</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Noto+Sans+SC:wght@400;500;700;900&family=ZCOOL+KuaiLe&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<nav class="spec-nav">
+  <a class="spec-brand" href="index.html">whoisspy · PC 游戏界面稿件</a>
+  <div class="spec-links">
+    <a href="00-login.html">00 登录</a>
+    <a href="01-list.html">01 对局列表</a>
+    <a href="02-create.html">02 创建对局</a>
+    <a href="03-watch.html">03 观战舞台</a>
+    <a href="04-seat.html">04 入座对战</a>
+    <a href="05-finish.html" class="on">05 终局与用量</a>
+    <a href="06-settings.html">06 设置</a>
+  </div>
+</nav>
+
+<section class="board">
+  <header class="board-head">
+    <span class="board-no">05</span>
+    <h2>终局 · 胜负揭示与用量面板</h2>
+    <p class="board-sub">终局横幅仅在进度抵达<b>末段</b>时揭示胜负（前段复盘不剧透）· usage 帧收尾落 <b>UsagePanel</b>：调用数 / tokens / 费用 / 缓存命中率 / 兜底数 / 规则异常数。</p>
+  </header>
+
+  <div class="frame">
+    <div class="screen">
+      <div class="sky day">
+        <div class="celestial"></div>
+        <div class="stars"></div>
+        <svg class="village" viewBox="0 0 1200 190" preserveAspectRatio="none">
+          <path class="v-hills" d="M0,190 L0,120 Q150,60 300,110 T600,100 T900,115 T1200,90 L1200,190 Z" />
+          <g class="v-houses">
+            <path d="M80,190 L80,140 L105,118 L130,140 L130,190 Z" />
+            <rect x="258" y="128" width="26" height="62" /><path d="M252,130 L271,112 L290,130 Z" />
+            <rect x="880" y="126" width="14" height="64" />
+            <g class="mill" transform="translate(887,122)">
+              <path d="M0,0 L26,7 L0,14 Z" /><path d="M0,0 L-26,-7 L0,-14 Z" />
+              <path d="M0,0 L-7,-26 L-14,0 Z" /><path d="M0,0 L7,26 L14,0 Z" />
+            </g>
+            <path d="M1030,190 L1030,142 L1056,120 L1082,142 L1082,190 Z" />
+          </g>
+        </svg>
+      </div>
+
+      <header class="topbar">
+        <p class="brand"><span class="logo">🐺</span><span>whoisspy</span></p>
+        <button class="pill-btn sm">🎮 狼人杀 · 标准 9 人局</button>
+        <button class="pill-btn on sm">👁️ 上帝视角</button>
+        <span class="spacer"></span>
+        <button class="pill-btn ghost sm">📁 导出复盘</button>
+        <button class="pill-btn ghost sm">🏠 回到列表</button>
+      </header>
+
+      <main class="stage">
+        <aside class="wing"><div class="seat-col">
+          <article class="seat-card god wolf dead">
+            <div class="avatar"><span>🦊</span><span class="grave">✖</span></div>
+            <div class="meta"><p class="no">1 号</p><p class="name">林间狐</p><p class="model">qwen-max · 悍跳强攻型</p></div>
+            <div class="role-chip wolf-c">狼人</div>
+          </article>
+          <article class="seat-card god good">
+            <div class="avatar"><span>🦉</span></div>
+            <div class="meta"><p class="no">2 号</p><p class="name">夜枭</p><p class="model">deepseek-v3 · 冷静盘逻辑型</p></div>
+            <div class="role-chip seer-c">预言家</div>
+            <span class="badge-sheriff" title="警长">🏅</span>
+          </article>
+          <article class="seat-card god good dead">
+            <div class="avatar"><span>🐻</span><span class="grave">✖</span></div>
+            <div class="meta"><p class="no">3 号</p><p class="name">老好人</p><p class="model">glm-4 · 真诚朴实型</p></div>
+            <div class="role-chip good-c">平民</div>
+          </article>
+          <article class="seat-card god wolf dead">
+            <div class="avatar"><span>🐱</span><span class="grave">✖</span></div>
+            <div class="meta"><p class="no">4 号</p><p class="name">沉默刀客</p><p class="model">qwen-max · 寡言观察型</p></div>
+            <div class="role-chip wolf-c">狼人</div>
+          </article>
+          <article class="seat-card god good">
+            <div class="avatar"><span>🦁</span></div>
+            <div class="meta"><p class="no">5 号</p><p class="name">戏精上校</p><p class="model">doubao-pro · 表演型人格</p></div>
+            <div class="role-chip good-c">平民</div>
+          </article>
+        </div></aside>
+
+        <div class="center">
+          <header class="banner">
+            <span class="icon">☀️</span>
+            <h1 class="title">第 3 天 · 尘埃落定</h1>
+            <span class="day-chip"><span class="day-label">第</span><span class="day-num">3</span><span class="day-label">天</span></span>
+          </header>
+          <div class="theater-wrap" style="position:relative">
+            <section class="theater" aria-label="对局对话">
+              <div class="feed">
+                <p class="narration">🗳️ 请各位投票放逐一名玩家。</p>
+                <p class="narration">⚖️ 9 号「老阴币」被放逐出局。</p>
+                <div class="bubble-row right">
+                  <span class="mini-avatar">🐙</span>
+                  <div class="bubble">
+                    <p class="who">9号 · 老阴币 <span class="tag last-tag">遗言</span></p>
+                    <p class="text">行吧，认了。2 号从头到尾没说错一句话，这局输得不冤。</p>
+                  </div>
+                </div>
+                <p class="narration">🏁 狼人全部出局——游戏结束。</p>
+              </div>
+            </section>
+
+            <div class="final-mask">
+              <div class="final-card">
+                <p class="cup">🏆</p>
+                <h3 class="win-good">好人阵营获胜</h3>
+                <p class="why">胜利原因：狼人全部出局 · 共 3 天 · 幸存 2、5、6、8 号</p>
+                <div class="final-actions">
+                  <button class="pill-btn primary">🔁 再来一局</button>
+                  <button class="pill-btn">📁 导出复盘</button>
+                  <button class="pill-btn ghost">🏠 回到列表</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bottom-row">
+            <section class="drawer" aria-label="投票结果">
+              <h2 class="title">🗳️ 放逐投票 · 第 3 天</h2>
+              <ul class="bars">
+                <li class="bar-row"><span class="who">🐙 9号 老阴币</span><span class="track"><span class="fill" style="width:100%"></span></span><span class="num">6</span><span class="out">出局</span></li>
+                <li class="bar-row"><span class="who">🐱 4号 沉默刀客</span><span class="track"><span class="fill" style="width:33%"></span></span><span class="num">2</span></li>
+                <li class="bar-row"><span class="who">🦊 1号 林间狐</span><span class="track"><span class="fill" style="width:17%"></span></span><span class="num">1</span></li>
+              </ul>
+              <p class="result">⚖️ 9 号「老阴币」被放逐出局（警长 2 票）</p>
+            </section>
+            <aside class="usage-pop">
+              <p class="title">📊 本局用量</p>
+              <div class="usage-grid">
+                <p class="usage-item"><span>LLM 调用</span><b>87</b></p>
+                <p class="usage-item"><span>Tokens</span><b>42.3k</b></p>
+                <p class="usage-item"><span>费用</span><b>¥0.42</b></p>
+                <p class="usage-item"><span>缓存命中</span><b>61%</b></p>
+                <p class="usage-item"><span>兜底次数</span><b>0</b></p>
+                <p class="usage-item"><span>规则异常</span><b>0</b></p>
+              </div>
+            </aside>
+          </div>
+        </div>
+
+        <aside class="wing"><div class="seat-col">
+          <article class="seat-card god good">
+            <div class="avatar"><span>🐰</span></div>
+            <div class="meta"><p class="no">6 号</p><p class="name">白月光</p><p class="model">glm-4 · 温柔和善型</p></div>
+            <div class="role-chip witch-c">女巫</div>
+          </article>
+          <article class="seat-card god good dead">
+            <div class="avatar"><span>🐢</span><span class="grave">✖</span></div>
+            <div class="meta"><p class="no">7 号</p><p class="name">数学家</p><p class="model">deepseek-v3 · 概率狂魔</p></div>
+            <div class="role-chip good-c">猎人</div>
+          </article>
+          <article class="seat-card god good">
+            <div class="avatar"><span>🐮</span></div>
+            <div class="meta"><p class="no">8 号</p><p class="name">大嗓门</p><p class="model">doubao-pro · 激情演讲型</p></div>
+            <div class="role-chip good-c">平民</div>
+          </article>
+          <article class="seat-card god wolf dead">
+            <div class="avatar"><span>🐙</span><span class="grave">✖</span></div>
+            <div class="meta"><p class="no">9 号</p><p class="name">老阴币</p><p class="model">qwen-max · 阴阳怪气型</p></div>
+            <div class="role-chip wolf-c">狼人</div>
+          </article>
+        </div></aside>
+      </main>
+
+      <footer class="director" style="max-width:1500px;width:100%;margin:0 auto">
+        <div style="flex:1;display:flex;align-items:center;gap:9px">
+          <button class="nav" aria-label="上一段">‹</button>
+          <div class="chapters">
+            <button class="chapter done">开局 · 发牌</button>
+            <button class="chapter done">第 1 夜 · 狼队密谋</button>
+            <button class="chapter done">第 1 天 · 放逐投票</button>
+            <button class="chapter done">第 2 天 · 放逐投票</button>
+            <button class="chapter now">第 3 天 · 尘埃落定</button>
+          </div>
+          <button class="nav" aria-label="下一段">›</button>
+        </div>
+        <div class="pace">
+          <span class="pace-label">节奏</span>
+          <button class="pace-play">▶ 继续</button>
+          <div class="speeds">
+            <button class="speed">0.5×</button>
+            <button class="speed on">1×</button>
+            <button class="speed">2×</button>
+            <button class="speed">4×</button>
+          </div>
+          <button class="pace-frame">⏭ 逐帧</button>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+  <ul class="notes">
+    <li><b>悬念保留</b>：拖动 / 跳段回前段时横幅不出现，只有进度抵达末段才揭示胜负与原因。</li>
+    <li>终局动作三分支：再来一局（复用当前建局配置）/ 导出复盘（export 消息）/ 回到列表（sync + list）。</li>
+    <li>UsagePanel 为收尾面板（usage 帧），与投票抽屉并排于剧场下方；兜底数 = 托管次数，规则异常数 = 引擎校验兜底。</li>
+  </ul>
+</section>
+
+<script src="app.js"></script>
+</body>
+</html>

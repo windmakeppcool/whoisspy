@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>whoisspy · 06 设置</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Noto+Sans+SC:wght@400;500;700;900&family=ZCOOL+KuaiLe&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<nav class="spec-nav">
+  <a class="spec-brand" href="index.html">whoisspy · PC 游戏界面稿件</a>
+  <div class="spec-links">
+    <a href="00-login.html">00 登录</a>
+    <a href="01-list.html">01 对局列表</a>
+    <a href="02-create.html">02 创建对局</a>
+    <a href="03-watch.html">03 观战舞台</a>
+    <a href="04-seat.html">04 入座对战</a>
+    <a href="05-finish.html">05 终局与用量</a>
+    <a href="06-settings.html" class="on">06 设置</a>
+  </div>
+</nav>
+
+<section class="board">
+  <header class="board-head">
+    <span class="board-no">06</span>
+    <h2>设置 · 密钥 / 人设 / 本地数据</h2>
+    <p class="board-sub">玩家自带 key：输入后存 <b>OS 凭据管理器</b>（Windows DPAPI，经 Electron safeStorage）· sidecar 启动时经环境变量还原，只走 <b>api_key_env</b>，不进配置 / 不落库 / 不进日志。</p>
+  </header>
+
+  <div class="frame">
+    <div class="screen tall">
+      <div class="sky day">
+        <div class="celestial"></div>
+        <div class="stars"></div>
+        <svg class="village" viewBox="0 0 1200 190" preserveAspectRatio="none">
+          <path class="v-hills" d="M0,190 L0,120 Q150,60 300,110 T600,100 T900,115 T1200,90 L1200,190 Z" />
+          <g class="v-houses">
+            <path d="M80,190 L80,140 L105,118 L130,140 L130,190 Z" />
+            <rect x="258" y="128" width="26" height="62" /><path d="M252,130 L271,112 L290,130 Z" />
+            <rect x="880" y="126" width="14" height="64" />
+            <g class="mill" transform="translate(887,122)">
+              <path d="M0,0 L26,7 L0,14 Z" /><path d="M0,0 L-26,-7 L0,-14 Z" />
+              <path d="M0,0 L-7,-26 L-14,0 Z" /><path d="M0,0 L7,26 L14,0 Z" />
+            </g>
+            <path d="M1030,190 L1030,142 L1056,120 L1082,142 L1082,190 Z" />
+          </g>
+        </svg>
+      </div>
+
+      <header class="topbar">
+        <p class="brand"><span class="logo">🐺</span><span>whoisspy</span></p>
+        <button class="pill-btn ghost sm">‹ 返回</button>
+        <span class="spacer"></span>
+        <button class="pill-btn primary sm">保存设置</button>
+      </header>
+
+      <div class="sheet">
+        <section class="panel">
+          <div class="set-section">
+            <div class="panel-head">
+              <h2>LLM 密钥</h2>
+              <p class="panel-sub">key 只存系统凭据管理器 · 座位 base_url 必须在 providers.json 白名单内</p>
+            </div>
+
+            <div class="key-row">
+              <p class="provider-name">DeepSeek<span class="base">api.deepseek.com</span></p>
+              <p><span class="env-chip">api_key_env · DEEPSEEK_API_KEY</span></p>
+              <input class="key-input" type="password" value="sk-••••••••••••••••" />
+              <p><span class="saved-tag">✓ 已存入凭据管理器</span></p>
+            </div>
+            <div class="key-row">
+              <p class="provider-name">通义千问<span class="base">dashscope.aliyuncs.com</span></p>
+              <p><span class="env-chip">api_key_env · DASHSCOPE_API_KEY</span></p>
+              <input class="key-input" type="password" value="sk-••••••••••••••••" />
+              <p><span class="saved-tag">✓ 已存入凭据管理器</span></p>
+            </div>
+            <div class="key-row">
+              <p class="provider-name">智谱 GLM<span class="base">open.bigmodel.cn</span></p>
+              <p><span class="env-chip">api_key_env · ZHIPU_API_KEY</span></p>
+              <input class="key-input" type="password" placeholder="未设置" />
+              <p><button class="pill-btn sm">测试连接</button></p>
+            </div>
+            <div class="key-row">
+              <p class="provider-name">豆包<span class="base">ark.cn-beijing.volces.com</span></p>
+              <p><span class="env-chip">api_key_env · ARK_API_KEY</span></p>
+              <input class="key-input" type="password" value="sk-••••••••••••••••" />
+              <p><span class="saved-tag">✓ 已存入凭据管理器</span></p>
+            </div>
+
+            <p class="safety-note">🔒 密钥不进 providers.json、不落库、不进日志与 trace；设置页不显示明文，导出文件中亦无密钥。</p>
+          </div>
+
+          <div class="set-section">
+            <div class="panel-head">
+              <h2>模型与人设</h2>
+              <p class="panel-sub">personas.json / providers.json（backend/data/，不入 git）· 建局时逐座指派</p>
+            </div>
+            <div class="persona-grid">
+              <div class="persona-item"><p class="p-name">🦊 悍跳强攻型</p><p class="p-style">语气强硬 · 敢于对跳</p></div>
+              <div class="persona-item"><p class="p-name">🦉 冷静盘逻辑型</p><p class="p-style">条理清晰 · 循证推理</p></div>
+              <div class="persona-item"><p class="p-name">🐻 真诚朴实型</p><p class="p-style">朴素表达 · 不绕弯子</p></div>
+              <div class="persona-item"><p class="p-name">🐱 寡言观察型</p><p class="p-style">少说多听 · 一击致命</p></div>
+              <div class="persona-item"><p class="p-name">🦁 表演型人格</p><p class="p-style">情绪饱满 · 带动气氛</p></div>
+              <div class="persona-item"><p class="p-name">🐢 概率狂魔</p><p class="p-style">数据说话 · 贝叶斯上身</p></div>
+            </div>
+          </div>
+
+          <div class="set-section">
+            <div class="panel-head">
+              <h2>本地数据</h2>
+              <p class="panel-sub">单一目录集中存放，将来云存档 = 同步该目录</p>
+            </div>
+            <p class="path-chip">📁 &lt;userData&gt;/whoisspy/ <button class="pill-btn sm">打开目录</button></p>
+            <div class="file-tags">
+              <span class="file-tag">whoisspy.db</span>
+              <span class="file-tag">exports/</span>
+              <span class="file-tag">settings.json（不含密钥）</span>
+            </div>
+          </div>
+
+          <div class="set-section">
+            <div class="panel-head">
+              <h2>快捷键</h2>
+            </div>
+            <div class="kbd-list">
+              <p class="kbd-item"><kbd>G</kbd> 切换视角</p>
+              <p class="kbd-item"><kbd>←</kbd><kbd>→</kbd> 上一段 / 下一段</p>
+              <p class="kbd-item"><kbd>Space</kbd> 暂停 / 继续</p>
+              <p class="kbd-item"><kbd>F</kbd> 逐帧</p>
+              <p class="kbd-item"><kbd>1–4</kbd> 倍速</p>
+              <p class="kbd-item"><kbd>Esc</kbd> 关闭菜单 / 面板</p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <ul class="notes">
+    <li>key 铁律闭环：设置页输入 → OS 凭据管理器 → sidecar 启动注入环境变量 → 座位配置只引用 <b>api_key_env</b> 变量名。</li>
+    <li>「测试连接」为唯一联网校验动作；provider base_url 不可自由填写，只从 providers.json 白名单选择。</li>
+    <li>本地数据目录即云存档余地（D37）；现阶段无 Steamworks 调用。</li>
+  </ul>
+</section>
+
+<script src="app.js"></script>
+</body>
+</html>

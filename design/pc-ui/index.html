@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>whoisspy · PC 游戏前端界面稿件 · 目录</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Noto+Sans+SC:wght@400;500;700;900&family=ZCOOL+KuaiLe&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+<style>
+.toc-panel { background: rgba(239,235,221,.05); border: 1px solid rgba(239,235,221,.16); border-radius: var(--radius-lg); padding: 26px 30px; }
+</style>
+</head>
+<body>
+<nav class="spec-nav">
+  <a class="spec-brand" href="index.html">whoisspy · PC 游戏界面稿件</a>
+  <div class="spec-links">
+    <a href="00-login.html">00 登录</a>
+    <a href="01-list.html">01 对局列表</a>
+    <a href="02-create.html">02 创建对局</a>
+    <a href="03-watch.html">03 观战舞台</a>
+    <a href="04-seat.html">04 入座对战</a>
+    <a href="05-finish.html">05 终局与用量</a>
+    <a href="06-settings.html">06 设置</a>
+  </div>
+</nav>
+
+<section class="board">
+  <header class="board-head">
+    <span class="board-no">UI</span>
+    <h2>PC 游戏前端界面稿件 · 目录</h2>
+    <p class="board-sub">口径：<b>docs/pc-game.md</b>（D34–D37）· 视觉 <b>docs/frontend-design.md</b> · 契约 <b>docs/frontend.md</b> 第八节。
+      每屏一文件，双击即可在浏览器打开；共享样式 styles.css、交互 app.js。</p>
+  </header>
+
+  <div class="toc-panel">
+    <a class="toc-row" href="00-login.html">
+      <span class="toc-no">00</span>
+      <span><span class="toc-title">游戏登录 · 启动首屏</span>
+        <p class="toc-sub">品牌首屏 + 本地玩家昵称 + 密钥状态提示 + 进入游戏 / 打开本地回放 / 设置。</p></span>
+      <span class="toc-go">打开 →</span>
+    </a>
+    <a class="toc-row" href="01-list.html">
+      <span class="toc-no">01</span>
+      <span><span class="toc-title">对局列表 · 主页</span>
+        <p class="toc-sub">exports/index.json 档案行（胜负 / 种子 / 座位构成 / 可用视角）+ 创建对局 / 本地导出入口。</p></span>
+      <span class="toc-go">打开 →</span>
+    </a>
+    <a class="toc-row" href="02-create.html">
+      <span class="toc-no">02</span>
+      <span><span class="toc-title">创建对局 · 座位分配</span>
+        <p class="toc-sub">选游戏 + standard-9 板子常量 + 9 座 human/llm 分配 + persona/model 指派 + 快速预设。</p></span>
+      <span class="toc-go">打开 →</span>
+    </a>
+    <a class="toc-row" href="03-watch.html">
+      <span class="toc-no">03</span>
+      <span><span class="toc-title">对局舞台 · 观战模式</span>
+        <p class="toc-sub">上帝视角夜战：狼队频道 / 内心独白 / 角色徽章 + 段落导航 + 节奏控制条（暂停 / 倍速 / 逐帧）。</p></span>
+      <span class="toc-go">打开 →</span>
+    </a>
+    <a class="toc-row" href="04-seat.html">
+      <span class="toc-no">04</span>
+      <span><span class="toc-title">对局舞台 · 入座对战</span>
+        <p class="toc-sub">input_required 驱动的人类行动面板：发言 240 字 / 投票 / 技能 + 托管倒计时；沉浸视角。</p></span>
+      <span class="toc-go">打开 →</span>
+    </a>
+    <a class="toc-row" href="05-finish.html">
+      <span class="toc-no">05</span>
+      <span><span class="toc-title">终局 · 胜负与用量</span>
+        <p class="toc-sub">末段才揭示的终局横幅 + 投票抽屉 + 用量面板（调用 / tokens / 费用 / 缓存 / 兜底 / 异常）。</p></span>
+      <span class="toc-go">打开 →</span>
+    </a>
+    <a class="toc-row" href="06-settings.html">
+      <span class="toc-no">06</span>
+      <span><span class="toc-title">设置 · 密钥 / 人设 / 本地数据</span>
+        <p class="toc-sub">key 入 OS 凭据管理器（api_key_env 注入）+ providers/personas + 本地数据目录 + 快捷键。</p></span>
+      <span class="toc-go">打开 →</span>
+    </a>
+  </div>
+
+  <ul class="notes">
+    <li>视觉基线：<b>贴纸卡通风</b>（墨线描边 + 硬投影）+ <b>昼夜天光</b>签名元素；字体三角色 ZCOOL KuaiLe / Noto Sans SC / Baloo 2，token 与 frontend/src/styles/tokens.css 一致。</li>
+    <li>03–05 舞台三屏 = 同一对局的连续片段（2 号警长预言家、狼队 1/4/9 号），复盘与直播共用组件。</li>
+    <li>新增界面（相对已落地观赛页）：<b>00 登录、02 创建、节奏控制条、人类行动面板、05 终局用量、06 设置</b>。</li>
+  </ul>
+</section>
+
+<script src="app.js"></script>
+</body>
+</html>

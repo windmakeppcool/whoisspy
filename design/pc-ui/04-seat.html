@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>whoisspy · 04 入座对战</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Noto+Sans+SC:wght@400;500;700;900&family=ZCOOL+KuaiLe&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<nav class="spec-nav">
+  <a class="spec-brand" href="index.html">whoisspy · PC 游戏界面稿件</a>
+  <div class="spec-links">
+    <a href="00-login.html">00 登录</a>
+    <a href="01-list.html">01 对局列表</a>
+    <a href="02-create.html">02 创建对局</a>
+    <a href="03-watch.html">03 观战舞台</a>
+    <a href="04-seat.html" class="on">04 入座对战</a>
+    <a href="05-finish.html">05 终局与用量</a>
+    <a href="06-settings.html">06 设置</a>
+  </div>
+</nav>
+
+<section class="board">
+  <header class="board-head">
+    <span class="board-no">04</span>
+    <h2>对局舞台 · 入座对战（轮到你行动）</h2>
+    <p class="board-sub">引擎推 <b>input_required {seat, spec, deadline}</b> 帧驱动面板 · 人类回复与 AgentReply 同构，校验 / 兜底 / 落库与 LLM 座位完全共用 · 沉浸视角无角色徽章 / 阵营边条 / 狼队频道。</p>
+  </header>
+
+  <div class="frame">
+    <div class="screen tall">
+      <div class="sky day">
+        <div class="celestial"></div>
+        <div class="stars"></div>
+        <svg class="village" viewBox="0 0 1200 190" preserveAspectRatio="none">
+          <path class="v-hills" d="M0,190 L0,120 Q150,60 300,110 T600,100 T900,115 T1200,90 L1200,190 Z" />
+          <g class="v-houses">
+            <path d="M80,190 L80,140 L105,118 L130,140 L130,190 Z" />
+            <path d="M170,190 L170,150 L190,132 L210,150 L210,190 Z" />
+            <rect x="258" y="128" width="26" height="62" /><path d="M252,130 L271,112 L290,130 Z" />
+            <rect x="880" y="126" width="14" height="64" />
+            <g class="mill" transform="translate(887,122)">
+              <path d="M0,0 L26,7 L0,14 Z" /><path d="M0,0 L-26,-7 L0,-14 Z" />
+              <path d="M0,0 L-7,-26 L-14,0 Z" /><path d="M0,0 L7,26 L14,0 Z" />
+            </g>
+            <path d="M1030,190 L1030,142 L1056,120 L1082,142 L1082,190 Z" />
+          </g>
+        </svg>
+      </div>
+
+      <header class="topbar">
+        <p class="brand"><span class="logo">🐺</span><span>whoisspy</span></p>
+        <button class="pill-btn sm">🎮 狼人杀 · 标准 9 人局</button>
+        <button class="pill-btn sm">🙈 沉浸视角</button>
+        <span class="spacer"></span>
+        <button class="pill-btn ghost sm">⚙ 设置</button>
+      </header>
+
+      <main class="stage">
+        <aside class="wing"><div class="seat-col">
+          <article class="seat-card">
+            <div class="avatar"><span>🦊</span></div>
+            <div class="meta"><p class="no">1 号</p><p class="name">林间狐</p><p class="model">qwen-max · 悍跳强攻型</p></div>
+          </article>
+          <article class="seat-card">
+            <div class="avatar"><span>🦉</span></div>
+            <div class="meta"><p class="no">2 号</p><p class="name">夜枭</p><p class="model">deepseek-v3 · 冷静盘逻辑型</p></div>
+            <span class="badge-sheriff" title="警长">🏅</span>
+          </article>
+          <article class="seat-card human speaking">
+            <div class="avatar"><span>🙋</span></div>
+            <div class="meta"><p class="no">3 号 · 你的座位</p><p class="name">你</p><p class="model">人类玩家</p></div>
+            <div class="role-chip human-c">轮到你</div>
+            <span class="speak-dot"></span>
+          </article>
+          <article class="seat-card">
+            <div class="avatar"><span>🐱</span></div>
+            <div class="meta"><p class="no">4 号</p><p class="name">沉默刀客</p><p class="model">qwen-max · 寡言观察型</p></div>
+          </article>
+          <article class="seat-card dead">
+            <div class="avatar"><span>🦁</span><span class="grave">✖</span></div>
+            <div class="meta"><p class="no">5 号</p><p class="name">戏精上校</p><p class="model">doubao-pro · 表演型人格</p></div>
+          </article>
+        </div></aside>
+
+        <div class="center">
+          <header class="banner">
+            <span class="icon">☀️</span>
+            <h1 class="title">第 1 天 · 轮流发言</h1>
+            <span class="day-chip"><span class="day-label">第</span><span class="day-num">1</span><span class="day-label">天</span></span>
+          </header>
+          <div class="theater-wrap"><section class="theater" aria-label="对局对话">
+            <div class="feed">
+              <p class="narration">☀️ 天亮了——昨夜，5 号「戏精上校」倒牌。</p>
+              <div class="bubble-row left">
+                <span class="mini-avatar">🦉</span>
+                <div class="bubble">
+                  <p class="who">2号 · 夜枭 <span class="tag sheriff-tag">警长</span></p>
+                  <p class="text">我先说信息：昨晚倒牌的是 5 号。我是好人，今天我归票听 3 号和 4 号的发言，谁划水我投谁。</p>
+                </div>
+              </div>
+              <div class="bubble-row right">
+                <span class="mini-avatar">🐱</span>
+                <div class="bubble">
+                  <p class="who">4号 · 沉默刀客</p>
+                  <p class="text">我没信息，过。但我不同意警长的归票逻辑，凭什么是从 3、4 里投？</p>
+                </div>
+              </div>
+              <p class="narration">👉 轮到 3 号发言（你）</p>
+            </div>
+          </section></div>
+
+          <section class="action-panel" aria-label="行动面板">
+            <div class="action-head">
+              <p class="action-title">🎯 轮到你了 <span class="turn-tag">3 号 · 发言</span></p>
+              <span class="timer-chip">⏱ 剩余 <b>01:12</b></span>
+              <p class="action-hint">超时将自动托管，按中性动作兜底（绝不代你用药 / 开枪）</p>
+            </div>
+
+            <div class="action-tabs" id="actionTabs">
+              <button class="at on" data-tab="speak">💬 发言</button>
+              <button class="at" data-tab="vote">🗳️ 投票</button>
+              <button class="at" data-tab="skill">🧪 技能</button>
+            </div>
+
+            <div class="action-body" data-pane="speak">
+              <textarea maxlength="240">我是好人。4 号刚才的发言在转移焦点，警长的归票逻辑没问题，我今天会跟警长的票。</textarea>
+              <div class="action-foot">
+                <span class="counter">62 / 240</span>
+                <span class="spacer"></span>
+                <button class="pass-btn">过</button>
+                <button class="send-btn">发送发言</button>
+              </div>
+            </div>
+
+            <div class="action-body" data-pane="vote" hidden>
+              <div class="target-grid">
+                <button class="target">🦊 1 号</button>
+                <button class="target on">🦉 2 号</button>
+                <button class="target">🐱 4 号</button>
+                <button class="target dead">🦁 5 号（出局）</button>
+                <button class="target">🐰 6 号</button>
+                <button class="target">🐢 7 号</button>
+                <button class="target">🐮 8 号</button>
+                <button class="target">🐙 9 号</button>
+              </div>
+              <div class="action-foot">
+                <span class="counter">已选 2 号 · 可改投</span>
+                <span class="spacer"></span>
+                <button class="pass-btn">弃票</button>
+                <button class="send-btn">确认投票</button>
+              </div>
+            </div>
+
+            <div class="action-body" data-pane="skill" hidden>
+              <p class="skill-note">🧪 女巫 · 今晚：解药 1 瓶 · 毒药 1 瓶 —— 用药须手动确认，托管<b>不会</b>替你做任何技能决定。</p>
+              <div class="target-grid" style="margin-top:10px">
+                <button class="target">💊 用解药救 5 号</button>
+                <button class="target">☠️ 用毒药</button>
+                <button class="target on">🚫 不用药</button>
+              </div>
+              <div class="action-foot">
+                <span class="counter">选择后立即生效</span>
+                <span class="spacer"></span>
+                <button class="send-btn">确认行动</button>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <aside class="wing"><div class="seat-col">
+          <article class="seat-card">
+            <div class="avatar"><span>🐰</span></div>
+            <div class="meta"><p class="no">6 号</p><p class="name">白月光</p><p class="model">glm-4 · 温柔和善型</p></div>
+          </article>
+          <article class="seat-card">
+            <div class="avatar"><span>🐢</span></div>
+            <div class="meta"><p class="no">7 号</p><p class="name">数学家</p><p class="model">deepseek-v3 · 概率狂魔</p></div>
+          </article>
+          <article class="seat-card">
+            <div class="avatar"><span>🐮</span></div>
+            <div class="meta"><p class="no">8 号</p><p class="name">大嗓门</p><p class="model">doubao-pro · 激情演讲型</p></div>
+          </article>
+          <article class="seat-card">
+            <div class="avatar"><span>🐙</span></div>
+            <div class="meta"><p class="no">9 号</p><p class="name">老阴币</p><p class="model">qwen-max · 阴阳怪气型</p></div>
+            <span class="speak-dot"></span>
+          </article>
+        </div></aside>
+      </main>
+
+      <footer class="director" style="max-width:1500px;width:100%;margin:0 auto">
+        <div style="flex:1;display:flex;align-items:center;gap:9px">
+          <button class="nav" aria-label="上一段">‹</button>
+          <div class="chapters">
+            <button class="chapter done">开局 · 发牌</button>
+            <button class="chapter done">第 1 夜 · 狼人密谋</button>
+            <button class="chapter now">第 1 天 · 轮流发言</button>
+            <button class="chapter">第 1 天 · 放逐投票</button>
+          </div>
+          <button class="nav" aria-label="下一段">›</button>
+        </div>
+        <div class="pace">
+          <span class="pace-label">节奏</span>
+          <button class="pace-play" id="pacePlay2">▶ 继续</button>
+          <div class="speeds" id="speeds2">
+            <button class="speed">0.5×</button>
+            <button class="speed on">1×</button>
+            <button class="speed">2×</button>
+            <button class="speed">4×</button>
+          </div>
+          <button class="pace-frame">⏭ 逐帧</button>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+  <ul class="notes">
+    <li><b>行动面板</b>由 input_required 帧唤起：形态（发言 / 投票 / 技能）由当前 ask 的 spec 决定，发言受 <b>240 字上限</b>约束。</li>
+    <li><b>托管</b>：deadline 内未行动 → 中性动作兜底（过 / 弃票），事件记 auto_taken，面板切「已托管」态；托管中技能类 ask 一律放弃，绝不代用药（D25）。</li>
+    <li>人类动作进事件流与 AI <b>同构</b>（同事件类型、同可见性），回放 / 导出零特判；人类无 monologue，不落独白。</li>
+  </ul>
+</section>
+
+<script src="app.js"></script>
+</body>
+</html>
