@@ -76,6 +76,7 @@ class MatchRun:
     wolf_meeting_rounds: int = WOLF_MEETING_ROUNDS
     model_assignments: list[dict[str, Any]] = field(default_factory=list)
     trace: TraceRecorder | None = None
+    pace: "PaceController | None" = None  # 节奏控制（serve 模式注入；None = CLI 直跑无感）
     rng: Random = field(init=False)
     events: list[Event] = field(default_factory=list, init=False, repr=False)
     _calls: int = field(default=0, init=False, repr=False)
@@ -107,6 +108,8 @@ class MatchRun:
                     "seq": ev.seq, "type": ev.type, "payload": ev.payload}})
             if self.on_event is not None:
                 self.on_event(ev)
+            if self.pace is not None:
+                await self.pace.wait()  # 事件原子粒度（serve 暂停/逐帧，15-serve 三）
         return ev
 
     def _seat_cfg(self, seat_no: int) -> dict[str, Any]:
@@ -115,6 +118,8 @@ class MatchRun:
     async def ask(self, seat_no: int, spec: AskSpec, purpose: str,
                   phase: str | None = None) -> tuple[dict[str, Any], AgentReply, bool]:
         """向一个座位发起一次调用（含校验/兜底）；护栏计数（锁内原子）。"""
+        if self.pace is not None:
+            await self.pace.wait()  # 暂停期间不发起新调用（serve，15-serve 三）
         async with self._emit_lock:
             self._calls += 1
             if self._calls > self.max_calls:

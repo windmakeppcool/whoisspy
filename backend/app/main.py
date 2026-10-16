@@ -2,6 +2,7 @@
 
 跑一局标准 9 人狼人杀 → 事件落 SQLite → 导出对话 JSON。
 stdout 逐事件直播（present 投影）；退出码：0 分出胜负 / 2 终止 / 3 配置错误。
+--serve 常驻对局服务（15-serve.md）：WS 直播帧推流，协议见 docs/backend/15-serve.md。
 """
 
 from __future__ import annotations
@@ -13,15 +14,15 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Any
 
-from app.config import build_seats, load_env_file, load_personas, load_providers
+from app.config import mock_seats, real_seats
 from app.events import Event
-from app.export import build_export, index_entry, update_index
+from app.export import build_export, export_match_files, personas_meta
 from app.flow import MatchRun, run_match
 from app.llm import LLMGateway, TraceRecorder
 from app.present import present
 from app.rules import MAX_DAYS, ROLES, WOLF_MEETING_ROUNDS
+from app.serve import ServeServer
 from app.state import GameState
 from app.store import Store
 
@@ -41,51 +42,56 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--wolf-rounds", type=int, default=WOLF_MEETING_ROUNDS,
                         help="狼队夜聊轮数")
     parser.add_argument("--max-calls", type=int, default=600, help="单局调用数护栏")
+    parser.add_argument("--serve", action="store_true",
+                        help="常驻对局服务模式（WS，协议见 docs/backend/15-serve.md）")
+    parser.add_argument("--token", default=None, help="serve 模式握手 token")
+    parser.add_argument("--base-dir", default=None,
+                        help="配置/导出根目录（缺省 cwd；Electron 传本地数据集中目录）")
     args = parser.parse_args(argv)
     if not args.mock and not args.real:
         args.mock = True  # 缺省 mock 模式
+    if args.serve and not args.token:
+        raise SystemExit("--serve 必须配合 --token <t>（握手 token，不落日志/不入库）")
     if args.view is None:
         # 显式 --out 是单文件归档（旧行为回落 god）；否则缺省双视角 both
         args.view = "god" if args.out else "both"
     return args
 
 
-def _mock_seats(n_players: int = 9) -> list[dict[str, Any]]:
-    return [{"seat": i, "persona_id": f"mock-{i}", "style": "", "strategy": "",
-             "provider_id": "mock", "base_url": "", "api_key_env": "",
-             "model": "mock", "api_key": "",
-             "price_per_mtok_in": 0.0, "price_per_mtok_out": 0.0,
-             "price_per_mtok_cached_in": None}
-            for i in range(1, n_players + 1)]
-
-
-def _real_seats(args: argparse.Namespace,
-                base: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """真实模式：加载配置 + key 预检 + 座位构建（persona 绑定 > 池内随机）。"""
-    load_env_file(str(base / "data" / ".env"))
-    providers = load_providers(str(base / "data" / "providers.json"))
-    personas = load_personas(str(base / "data" / "personas.json"))
-    seats, assignments = build_seats(
-        n_players=9, personas=personas.personas, providers=providers.providers,
-        env=os.environ, model=args.model,
-        seed=args.seed if args.seed is not None else 0)
-    for s in seats:
-        s["api_key"] = os.environ.get(s["api_key_env"], "")  # 运行时解析进内存
-    return seats, assignments
-
-
-def _fmt_cost(micros: int) -> str:
-    return f"¥{micros / 1e6:.2f}" if micros else "¥0.00"
-
-
 async def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    base = Path.cwd()
+    base = Path(args.base_dir) if args.base_dir else Path.cwd()
     try:
+        if args.serve:
+            return await _serve_main(args, base)
         return await _run(args, base)
     except ValueError as e:
         print(f"配置错误：{e}")
         return 3
+
+
+async def _serve_main(args: argparse.Namespace, base: Path) -> int:
+    """serve 模式（12-cli 〇 / 15-serve）：WS 常驻，收 create 跑对局推直播帧。"""
+    db_path = Path(args.db) if args.db else base / "data" / "whoisspy.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    store = await Store.init(str(db_path))
+    server = ServeServer(
+        store=store, base=base, token=args.token,
+        mode="real" if args.real else "mock", seed=args.seed, model=args.model,
+        wolf_rounds=args.wolf_rounds, max_days=args.max_days,
+        max_calls=args.max_calls,
+        trace_dir=Path(args.trace) if args.trace else None)
+    try:
+        port = await server.start()
+        print(port, flush=True)  # stdout 首行：实际端口（Electron main 读取）
+        print(f"serve 模式：ws://127.0.0.1:{port}（token 已注入，不打印）")
+        await asyncio.Event().wait()  # 常驻
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        pass
+    finally:
+        await server.stop()
+        await store.close()
+    return 0
 
 
 async def _run(args: argparse.Namespace, base: Path) -> int:
@@ -94,12 +100,12 @@ async def _run(args: argparse.Namespace, base: Path) -> int:
         raise ValueError("--out 与 --view both 不能同时使用；请显式指定 god 或 public")
     seed = args.seed if args.seed is not None else int(time.time())
     if args.real:
-        seats, assignments = _real_seats(args, base)
+        seats, assignments = real_seats(base, seed=seed, model=args.model)
         print("模型分配：")
         for a in assignments:
             print(f"  {a['seat']}号 {a['persona_id']} -> {a['model']} ({a['basis']})")
     else:
-        seats = _mock_seats()
+        seats = mock_seats()
         assignments = [{"seat": s["seat"], "persona_id": s["persona_id"],
                         "model": "mock", "basis": "mock", "provider_id": "mock"}
                        for s in seats]
@@ -144,22 +150,14 @@ async def _run(args: argparse.Namespace, base: Path) -> int:
     return code
 
 
+def _fmt_cost(micros: int) -> str:
+    return f"¥{micros / 1e6:.2f}" if micros else "¥0.00"
+
+
 def _live(ev: Event) -> None:
     line = present(ev)
     if line is not None:
         print(line.text)
-
-
-def _personas_meta(base: Path) -> dict[str, dict[str, str]] | None:
-    """人设显示名/风格映射（personas.json 可选；缺失或坏配置回退 None → 导出用 persona_id）。"""
-    f = base / "data" / "personas.json"
-    if not f.exists():
-        return None
-    try:
-        data = load_personas(str(f))
-    except ValueError:
-        return None
-    return {p.id: {"name": p.name, "style": p.style} for p in data.personas}
 
 
 async def _finish(run: MatchRun, store: Store, args: argparse.Namespace,
@@ -181,32 +179,20 @@ async def _finish(run: MatchRun, store: Store, args: argparse.Namespace,
           f"（缓存命中 {usage['cache_hit_rate']:.0%}）"
           f" / 兜底 {fallbacks} 次 / 规则异常 {rule_errors} 次")
 
-    events = await store.load_events(mid)
-    seats = await store.load_seats(mid)
-    personas = _personas_meta(base)
-
-    def _write(out: Path, view: str) -> str:
-        out.parent.mkdir(parents=True, exist_ok=True)
-        doc = build_export(match_id=mid, match_info=m or {}, seats=seats,
-                           events=events, usage=usage, view=view, personas=personas)
-        out.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
-        return doc["exported_at"]
-
     if args.out:
         # 单文件归档（--view 生效，不更新索引）
-        exported_at = _write(Path(args.out), args.view)
+        events = await store.load_events(mid)
+        seats = await store.load_seats(mid)
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        doc = build_export(match_id=mid, match_info=m or {}, seats=seats,
+                           events=events, usage=usage, view=args.view,
+                           personas=personas_meta(base))
+        out.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"导出：{args.out}")
     else:
         # 缺省：双视角文件 + 合并更新对局索引（12-cli 四 / 11-export 五）
-        out_dir = Path("exports")
-        exported_at = _write(out_dir / f"match-{mid}-god.json", "god")
-        _write(out_dir / f"match-{mid}-public.json", "public")
-        entry = index_entry(match_id=mid, seed=(m or {}).get("seed"),
-                            status=(m or {}).get("status"),
-                            winner=result.get("winner"), reason=result.get("reason"),
-                            player_count=len(seats), exported_at=exported_at,
-                            views=["god", "public"])
-        update_index(out_dir / "index.json", entry)
+        await export_match_files(store, mid, base)
         print(f"导出：exports/match-{mid}-god.json、exports/match-{mid}-public.json"
               " + index.json")
     await store.close()

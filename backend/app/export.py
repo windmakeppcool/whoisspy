@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from app.config import load_personas
 from app.events import Event
 from app.present import present
 from app.rules import tally_votes
@@ -127,20 +128,8 @@ def build_export(*, match_id: int, match_info: dict[str, Any],
     personas: {persona_id: {"name", "style"}}，可选；缺省回退 persona_id。
     """
     result = match_info.get("result") or {}
-    seat_rows: list[dict[str, Any]] = []
-    for s in seats:
-        persona_id = s.get("persona_id", "")
-        meta = (personas or {}).get(persona_id)
-        seat_rows.append({
-            "seat": s["seat"],
-            "persona_id": persona_id,
-            "persona_name": meta["name"] if meta else persona_id,
-            "persona_style": meta["style"] if meta else s.get("style", ""),
-            "model": s.get("model", ""),
-        })
-    if view == "god":
-        for row, s in zip(seat_rows, seats):
-            row["role"] = s.get("role")
+    seat_rows_: list[dict[str, Any]] = seat_rows(seats, personas,
+                                                 include_role=(view == "god"))
     board = dict(match_info.get("board") or {})
     board.pop("model_assignments", None)
     return {
@@ -153,7 +142,7 @@ def build_export(*, match_id: int, match_info: dict[str, Any],
             "winner": result.get("winner"),
             "reason": result.get("reason"),
             "board": board,
-            "seats": seat_rows,
+            "seats": seat_rows_,
             "model_assignments": (match_info.get("board") or {}).get(
                 "model_assignments", []),
         },
@@ -164,6 +153,71 @@ def build_export(*, match_id: int, match_info: dict[str, Any],
             "rule_errors": sum(1 for e in events if e.type == "rule.error"),
         },
     }
+
+
+def seat_rows(seats: list[dict[str, Any]], personas: dict[str, dict[str, str]] | None,
+              *, include_role: bool) -> list[dict[str, Any]]:
+    """座位行（build_export 与 serve match_open 共用同一构造，保证同构）。"""
+    rows: list[dict[str, Any]] = []
+    for s in seats:
+        persona_id = s.get("persona_id", "")
+        meta = (personas or {}).get(persona_id)
+        rows.append({
+            "seat": s["seat"],
+            "persona_id": persona_id,
+            "persona_name": meta["name"] if meta else persona_id,
+            "persona_style": meta["style"] if meta else s.get("style", ""),
+            "model": s.get("model", ""),
+        })
+    if include_role:
+        for row, s in zip(rows, seats):
+            row["role"] = s.get("role")
+    return rows
+
+
+def personas_meta(base: Path) -> dict[str, dict[str, str]] | None:
+    """人设显示名/风格映射（personas.json 可选；缺失或坏配置回退 None → 用 persona_id）。"""
+    f = Path(base) / "data" / "personas.json"
+    if not f.exists():
+        return None
+    try:
+        data = load_personas(str(f))
+    except ValueError:
+        return None
+    return {p.id: {"name": p.name, "style": p.style} for p in data.personas}
+
+
+async def export_match_files(store, mid: int, base: Path,
+                             out_dir: Path | None = None) -> str:
+    """双视角导出 + 合并更新对局索引（12-cli 四；CLI 收尾与 serve export 共用）。
+
+    返回 exported_at。out_dir 缺省 `./exports`（CLI 相对 cwd 的旧行为）；
+    serve 显式传 `base/exports`（本地数据集中目录，pc-game 六）。
+    """
+    m = await store.load_match(mid)
+    events = await store.load_events(mid)
+    seats = await store.load_seats(mid)
+    usage = await store.usage_summary(mid)
+    personas = personas_meta(base)
+    result = (m or {}).get("result") or {}
+
+    def _write(out: Path, view: str) -> str:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        doc = build_export(match_id=mid, match_info=m or {}, seats=seats,
+                           events=events, usage=usage, view=view, personas=personas)
+        out.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
+        return doc["exported_at"]
+
+    out_dir = out_dir or Path("exports")
+    exported_at = _write(out_dir / f"match-{mid}-god.json", "god")
+    _write(out_dir / f"match-{mid}-public.json", "public")
+    entry = index_entry(match_id=mid, seed=(m or {}).get("seed"),
+                        status=(m or {}).get("status"),
+                        winner=result.get("winner"), reason=result.get("reason"),
+                        player_count=len(seats), exported_at=exported_at,
+                        views=["god", "public"])
+    update_index(out_dir / "index.json", entry)
+    return exported_at
 
 
 def index_entry(*, match_id: int, seed: int | None, status: str | None,

@@ -1,0 +1,15 @@
+{
+  "name": "whoisspy-electron",
+  "private": true,
+  "version": "0.1.0",
+  "description": "whoisspy PC 客户端壳（Electron 主进程 + Python sidecar，见 docs/pc-game.md）",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "start:dev": "cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron ."
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^33.0.0"
+  }
+}

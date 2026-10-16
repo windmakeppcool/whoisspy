@@ -7,6 +7,7 @@ key 只经 api_key_env 环境变量解析进内存，绝不落库。
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from random import Random
 from typing import Any
 
@@ -158,4 +159,30 @@ def build_seats(*, n_players: int, personas: list[Persona],
         assignments.append({"seat": i, "persona_id": persona.id,
                             "model": seat_model, "basis": basis,
                             "provider_id": p.id})
+    return seats, assignments
+
+
+def mock_seats(n_players: int = 9) -> list[dict[str, Any]]:
+    """mock 模式座位（CLI 与 serve 共用，main.py 原私有函数移入）。"""
+    return [{"seat": i, "persona_id": f"mock-{i}", "style": "", "strategy": "",
+             "provider_id": "mock", "base_url": "", "api_key_env": "",
+             "model": "mock", "api_key": "",
+             "price_per_mtok_in": 0.0, "price_per_mtok_out": 0.0,
+             "price_per_mtok_cached_in": None}
+            for i in range(1, n_players + 1)]
+
+
+def real_seats(base: Path, *, seed: int, model: str | None = None,
+               n_players: int = 9) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """真实模式：加载配置 + key 预检 + 座位构建（CLI 与 serve 共用）。"""
+    from pathlib import Path as _Path
+
+    load_env_file(str(_Path(base) / "data" / ".env"))
+    providers = load_providers(str(_Path(base) / "data" / "providers.json"))
+    personas = load_personas(str(_Path(base) / "data" / "personas.json"))
+    seats, assignments = build_seats(
+        n_players=n_players, personas=personas.personas, providers=providers.providers,
+        env=os.environ, model=model, seed=seed)
+    for s in seats:
+        s["api_key"] = os.environ.get(s["api_key_env"], "")  # 运行时解析进内存
     return seats, assignments

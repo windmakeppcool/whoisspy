@@ -187,9 +187,23 @@ async def test_cli_both与out冲突退出3(tmp_path):
 async def test_cli_real无key退出码3(tmp_path):
     from app.main import main
 
-    # real 模式：默认 data/ 下没有 providers.json → 配置错误
-    code = await main(["--real", "--db", str(tmp_path / "t.db"),
-                       "--out", str(tmp_path / "x.json")])
+    # 独立配置目录（不依赖 backend/data 的漂移配置）：providers.json 引用的
+    # 环境变量未设置 → key 预检失败，退出码 3
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "providers.json").write_text(json.dumps({"providers": [
+        {"id": "demo", "base_url": "https://api.demo/v1", "api_key_env": "DEMO_KEY",
+         "models": [{"id": "m-a"}]}]}), encoding="utf-8")
+    (data / "personas.json").write_text(json.dumps({"personas": [
+        {"id": "calm", "name": "冷静", "style": "克制", "strategy": "盘逻辑"}]}),
+        encoding="utf-8")
+    old = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        code = await main(["--real", "--db", str(tmp_path / "t.db"),
+                           "--out", str(tmp_path / "x.json")])
+    finally:
+        os.chdir(old)
     assert code == 3
 
 

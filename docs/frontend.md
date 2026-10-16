@@ -127,18 +127,18 @@ Pinia：
 - 组件冒烟：MatchView 以真实导出文件（`backend/exports/match-*-god.json`）为 fixture；
 - 契约由后端锁死：`test_export` 覆盖 v2 字段（[backend/13-testing.md](backend/13-testing.md)）。
 
-## 八、演进：直播与建局（已并入 PC 方案，D34/D35）
+## 八、演进：直播与建局（已并入 PC 方案，D34/D35；**已实施**，档 1 观战闭环）
 
 原「阶段 B 最小 API」方向已并入 [pc-game.md](pc-game.md)（Electron + Python sidecar，
-本机回环 WebSocket 替代 REST + SSE）——**契约不变**，前端只换 `ApiSource` 即接入：
+本机回环 WebSocket 替代 REST + SSE）——**契约不变，前端只换 `ApiSource` 即接入**：
 
 - 建局/索引/对局读取：sidecar 消息 `create / list / export`（对应原 REST 三端点）；
 - 直播帧 = 展示文档的增量分解：`segment_open / line / segment_close(stage, votes) / usage / finished`
   ——复盘（整文档）与直播（帧流 append 进同一文档模型）同构，「观赛/复盘共用组件」由此达成；
 - 额外帧 `input_required`（人类座位轮次）与 `pace`（暂停/倍速/逐帧）是 PC 化新增，见
   [pc-game.md](pc-game.md) 第三、四节；
-- 协议规格实施时落 [backend/12-cli.md](backend/12-cli.md)（`--serve` 模式），
-  不复活旧 `api/app.py`。
+- 协议规格已落 [backend/15-serve.md](backend/15-serve.md) + [backend/12-cli.md](backend/12-cli.md)
+  （`--serve` 模式），不复活旧 `api/app.py`。
 
 ## 九、设计决策记录
 
@@ -165,6 +165,14 @@ UsagePanel、视角切换=换文档、本地文件打开），旧 `api/` `model/
 二轮显示优化：修复换视角段错乱（`DialogueTheater` 换文档重置 `scrollTop`）、内心合并
 `mergeMonologues`（TDD 7 用例）、进度条 + 「N / M」数字、终局横幅末段揭示悬念、加载态卸载舞台。
 
-验收：后端 212+ passed；前端 vitest 23、`vue-tsc -b` 与 `vite build` 通过；`--mock --seed 42`
+三轮：PC 化档 1 观战闭环（2026-10-15，[pc-game.md](pc-game.md) 九）：`ApiSource` 转正
+（WS 握手/请求应答 FIFO/断线重连 + `model/live.ts` 帧增量纯函数，TDD 9 用例锁死
+「直播帧 append ≡ 静态导出」）；`stores/live` 直播态（自动跟随最新段）；`LiveView`
+复用复盘舞台组件 + `PaceBar` 节奏控制条（暂停/继续/逐帧/投递间隔）；`CreateMatchView`
+建局（观战 = 全 LLM 座位，可开局暂停）；Electron 壳（`electron/`）spawn sidecar +
+握手 token 注入。端到端验收：sidecar + dev server + 浏览器走通
+「列表 → 建局 → 直播（暂停/逐帧/继续）→ 终局横幅 + 用量」，无 JS 错误。
+
+验收：后端 225 passed；前端 vitest 32、`vue-tsc -b` 与 `vite build` 通过；`--mock --seed 42`
 产出 `exports/match-*-{god,public}.json + index.json`，dev server `/exports/` 读取正常。
 

@@ -172,7 +172,7 @@ async def ask(self, seat_no, spec, purpose, ...):
 
 ## 九、实施分期
 
-**档 1：观战闭环（最小可玩）**
+**档 1：观战闭环（最小可玩）**（**已实施** 2026-10-15，协议见 [15-serve.md](backend/15-serve.md)）
 
 1. sidecar `--serve` + WS 握手/token + `create`（全 LLM 座位）；
 2. `ApiSource` 接直播帧 → 现有复盘舞台实时演播（观战 = 零人类座位）；

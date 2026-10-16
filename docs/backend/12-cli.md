@@ -16,6 +16,19 @@ python -m app.main [选项]          # 在 backend/ 目录下运行
 | `--max-days N` | 8 | 天数上限覆盖 |
 | `--wolf-rounds N` | 2 | 狼队夜聊轮数覆盖 |
 | `--max-calls N` | 600 | 单局调用数护栏 |
+| `--serve` | 关 | 常驻对局服务模式（WS，协议见 [15-serve.md](15-serve.md)） |
+| `--token T` | — | serve 模式握手 token（配合 `--serve`；不落日志/不入库） |
+| `--base-dir PATH` | cwd | 配置/导出根目录（`data/` 配置 + `exports/` 落此处；Electron 传本地数据集中目录） |
+
+## 〇、serve 模式（常驻对局服务，PC 方案）
+
+`python -m app.main --serve --token <t>`：起回环 WS 监听（端口自选 → **stdout 首行
+回打纯数字端口**），收 `create` → 跑对局 → 推直播帧（15-serve 消息族）。
+
+- 复用本册执行序：配置加载、建库落 match、模型分配、收尾导出与用量汇总一律不变；
+  对局期间事件照常落库，`finished/stopped` 后照常双视角导出 + 索引；
+- 节奏控制（pause/resume/frame/speed）见 [15-serve.md](15-serve.md) 三；
+- **非 serve 的 CLI 路径零改动**；引擎保持无 UI 依赖，本册其余选项照常独立可跑。
 
 ## 一、执行序
 

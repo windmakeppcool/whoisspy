@@ -185,6 +185,17 @@ class Store:
                 "board": json.loads(row[2]), "status": row[3],
                 "result": json.loads(row[4]) if row[4] else None}
 
+    async def load_matches(self) -> list[dict[str, Any]]:
+        """全量对局（serve list 用；按 id 倒序 = 新建在前）。"""
+        cur = await self._conn.execute(
+            "SELECT id, created_at, seed, board_json, status, result_json "
+            "FROM match ORDER BY id DESC")
+        rows = await cur.fetchall()
+        return [{"id": int(r[0]), "created_at": r[1], "seed": int(r[2]),
+                 "board": json.loads(r[3]), "status": r[4],
+                 "result": json.loads(r[5]) if r[5] else None}
+                for r in rows]
+
     async def load_seats(self, match_id: int) -> list[dict[str, Any]]:
         cur = await self._conn.execute(
             "SELECT seat, persona_id, style, strategy, provider_id, base_url, "

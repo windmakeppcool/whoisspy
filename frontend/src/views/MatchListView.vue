@@ -1,17 +1,22 @@
 <script setup lang="ts">
-// 对局列表页：静态导出源（exports/index.json）；本地文件打开入口
+// 对局列表页：静态导出源（exports/index.json）+ 本地文件打开；引擎可用时提供建局入口
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMatchListStore } from '../stores/matchList'
 import { useReplayStore } from '../stores/replay'
+import { useLiveStore } from '../stores/live'
 
 const store = useMatchListStore()
 const replay = useReplayStore()
+const live = useLiveStore()
 const router = useRouter()
 const fileInput = ref<HTMLInputElement | null>(null)
 const picking = ref(false)
 
-onMounted(() => void store.refresh())
+onMounted(() => {
+  void store.refresh()
+  void live.setup() // 引擎可用时显示「创建对局」（观战/入座入口）
+})
 
 const statusLabel: Record<string, string> = {
   finished: '已结束',
@@ -46,6 +51,9 @@ async function onPick(e: Event) {
 <template>
   <nav class="topbar">
     <p class="brand"><span class="logo">🐺</span><span class="word">whoisspy</span></p>
+    <button v-if="live.connected" class="new-btn create" @click="router.push('/create')">
+      🎬 创建对局
+    </button>
     <button class="new-btn" :disabled="picking" @click="fileInput?.click()">
       📂 打开本地复盘
     </button>
@@ -121,6 +129,10 @@ async function onPick(e: Event) {
 }
 .new-btn:hover { transform: translateY(-1px); }
 .new-btn:disabled { opacity: 0.5; cursor: wait; }
+.new-btn.create {
+  background: linear-gradient(180deg, var(--sheriff) 0%, #a4764a 100%);
+  color: var(--paper);
+}
 .hidden-input { display: none; }
 .wrap { max-width: 780px; margin: 0 auto; padding: 8px 20px 40px; }
 .page-title {
